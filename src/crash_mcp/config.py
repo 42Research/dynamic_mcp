@@ -9,7 +9,7 @@ from typing import Dict, Any
 
 class Config:
     """Configuration class for crash MCP server."""
-    
+
     def __init__(self):
         self.crash_dump_path = Path(os.getenv("CRASH_DUMP_PATH", "/var/crash"))
         self.kernel_path = Path(os.getenv("KERNEL_PATH", "/boot"))
@@ -17,6 +17,12 @@ class Config:
         self.crash_timeout = int(os.getenv("CRASH_TIMEOUT", "120"))
         self.max_crash_dumps = int(os.getenv("MAX_CRASH_DUMPS", "10"))
         self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "180"))
+
+        # Dynamic reverse connection configuration
+        self.dynamic_url = os.getenv("DYNAMIC_URL", "http://localhost:8787")
+        self.dynamic_api_key = os.getenv("DYNAMIC_API_KEY", "")
+        self.enable_reverse_connection = os.getenv("ENABLE_REVERSE_CONNECTION", "false").lower() == "true"
+        self.heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL", "15"))  # seconds
 
 
 def setup_logging():

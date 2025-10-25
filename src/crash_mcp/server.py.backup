@@ -37,7 +37,6 @@ from crash_mcp.config import Config, setup_logging, check_system_requirements, v
 from crash_mcp.crash_discovery import CrashDumpDiscovery
 from crash_mcp.crash_session import CrashSessionManager
 from crash_mcp.kernel_detection import KernelDetection
-from crash_mcp.dynamic_connector import DynamicConnector
 
 # Load environment variables
 try:
@@ -79,7 +78,6 @@ class CrashMCPServer:
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
-        self.dynamic_connector = DynamicConnector(self.config, self)
         self._setup_tools()
     
     def _setup_tools(self):
@@ -396,48 +394,6 @@ class CrashMCPServer:
                             'type': 'http.response.body',
                             'body': json.dumps({"error": str(e)}).encode(),
                         })
-                elif path == "/api/mcp/request":
-                    # Handle Dynamic reverse connection requests
-                    try:
-                        # Read request body
-                        body = b''
-                        while True:
-                            message = await receive()
-                            if message['type'] == 'http.request':
-                                body += message.get('body', b'')
-                                if not message.get('more_body', False):
-                                    break
-
-                        # Parse JSON request
-                        request_data = json.loads(body.decode('utf-8'))
-                        method = request_data.get('method')
-                        params = request_data.get('params', {})
-
-                        # Handle request through Dynamic connector
-                        result = await self.dynamic_connector.handle_dynamic_request(method, params)
-
-                        # Send response
-                        await send({
-                            'type': 'http.response.start',
-                            'status': 200,
-                            'headers': [[b'content-type', b'application/json']],
-                        })
-                        await send({
-                            'type': 'http.response.body',
-                            'body': json.dumps(result).encode(),
-                        })
-                    except Exception as e:
-                        logger.error(f"Dynamic request endpoint error: {e}")
-                        # Send error response
-                        await send({
-                            'type': 'http.response.start',
-                            'status': 500,
-                            'headers': [[b'content-type', b'application/json']],
-                        })
-                        await send({
-                            'type': 'http.response.body',
-                            'body': json.dumps({"success": False, "error": str(e)}).encode(),
-                        })
                 else:
                     # 404 for other paths
                     await send({
@@ -455,10 +411,6 @@ class CrashMCPServer:
     async def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run the MCP server with HTTP/SSE transport."""
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
-
-        # Start Dynamic connector if enabled
-        await self.dynamic_connector.start()
-
         asgi_app = self.create_sse_app()
 
         config = uvicorn.Config(
@@ -471,9 +423,6 @@ class CrashMCPServer:
         try:
             await server.serve()
         finally:
-            # Stop Dynamic connector
-            await self.dynamic_connector.stop()
-
             # Clean up crash session if active
             if self.crash_session_manager.is_session_active():
                 self.crash_session_manager.close_session()

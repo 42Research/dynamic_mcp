@@ -134,7 +134,88 @@ CRASH_COMMAND_TIMEOUT=120
 # Logging configuration
 LOG_LEVEL=INFO
 SUPPRESS_MCP_WARNINGS=true
+
+# Dynamic reverse connection (optional)
+ENABLE_REVERSE_CONNECTION=false
+DYNAMIC_URL=http://localhost:8787
+DYNAMIC_API_KEY=
+HEARTBEAT_INTERVAL=15
 ```
+
+## Dynamic Reverse Connection
+
+The crash_mcp server supports reverse connection to the Dynamic service, allowing it to be used as a remote crash analysis backend.
+
+### Enabling Reverse Connection
+
+1. **Configure environment variables:**
+   ```bash
+   ENABLE_REVERSE_CONNECTION=true
+   DYNAMIC_URL=http://localhost:8787
+   DYNAMIC_API_KEY=your-api-key  # Optional
+   HEARTBEAT_INTERVAL=15  # Heartbeat interval in seconds
+   ```
+
+2. **Start the server in HTTP mode:**
+   ```bash
+   crash-mcp-http
+   ```
+
+3. **The server will automatically:**
+   - Register with Dynamic on startup
+   - Send periodic heartbeats to maintain the connection
+   - Handle incoming requests from Dynamic via `/mcp/request` endpoint
+
+### How It Works
+
+When reverse connection is enabled:
+
+1. **Registration**: On startup, the server registers with Dynamic at `/api/mcp/connect`
+2. **Heartbeat**: Sends periodic heartbeats to `/api/mcp/registry/heartbeat` to keep the connection alive
+3. **Request Handling**: Listens for incoming requests from Dynamic at `/mcp/request`
+
+### Dynamic Request Format
+
+Dynamic sends requests in the following format:
+
+```json
+{
+  "method": "crash_command",
+  "params": {
+    "command": "sys",
+    "timeout": 120
+  }
+}
+```
+
+The server responds with:
+
+```json
+{
+  "success": true,
+  "data": "... crash command output ..."
+}
+```
+
+Or in case of error:
+
+```json
+{
+  "success": false,
+  "error": "Error message"
+}
+```
+
+### Available Methods
+
+All MCP tools are available via reverse connection:
+- `crash_command` - Execute crash utility commands
+- `get_crash_info` - Get crash session information
+- `list_crash_dumps` - List available crash dumps
+- `start_crash_session` - Start a crash analysis session
+- `close_crash_session` - Close the active session
+
+For detailed integration instructions, see [CRASH_MCP_INTEGRATION.md](CRASH_MCP_INTEGRATION.md).
 
 ## MCP Tools
 
