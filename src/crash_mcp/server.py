@@ -396,6 +396,107 @@ class CrashMCPServer:
                             'type': 'http.response.body',
                             'body': json.dumps({"error": str(e)}).encode(),
                         })
+                elif path == "/api/tools":
+                    # Handle tools listing request
+                    try:
+                        # Get available tools - list_tools is a handler, not a coroutine
+                        # We need to manually construct the tools list
+                        tools_list = [
+                            {
+                                "name": "crash_command",
+                                "description": "Execute a command in the crash utility session",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "command": {
+                                            "type": "string",
+                                            "description": "The crash command to execute"
+                                        },
+                                        "timeout": {
+                                            "type": "integer",
+                                            "description": "Command timeout in seconds (optional, default 120s for large dumps)",
+                                            "default": 120
+                                        }
+                                    },
+                                    "required": ["command"]
+                                }
+                            },
+                            {
+                                "name": "get_crash_info",
+                                "description": "Get information about the current crash dump and session",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                }
+                            },
+                            {
+                                "name": "list_crash_dumps",
+                                "description": "List all available crash dumps",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "max_dumps": {
+                                            "type": "integer",
+                                            "description": "Maximum number of dumps to return (optional)",
+                                            "default": 10
+                                        }
+                                    },
+                                    "required": []
+                                }
+                            },
+                            {
+                                "name": "start_crash_session",
+                                "description": "Start a new crash session with a specific dump",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "dump_name": {
+                                            "type": "string",
+                                            "description": "Name of the crash dump file (optional, uses latest if not specified)"
+                                        },
+                                        "timeout": {
+                                            "type": "integer",
+                                            "description": "Session timeout in seconds (optional, default 120s for large dumps)",
+                                            "default": 120
+                                        }
+                                    },
+                                    "required": []
+                                }
+                            },
+                            {
+                                "name": "close_crash_session",
+                                "description": "Close the current crash session",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                }
+                            }
+                        ]
+
+                        # Send response
+                        await send({
+                            'type': 'http.response.start',
+                            'status': 200,
+                            'headers': [[b'content-type', b'application/json']],
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': json.dumps({"tools": tools_list}).encode(),
+                        })
+                    except Exception as e:
+                        logger.error(f"Tools endpoint error: {e}")
+                        # Send error response
+                        await send({
+                            'type': 'http.response.start',
+                            'status': 500,
+                            'headers': [[b'content-type', b'application/json']],
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': json.dumps({"error": str(e)}).encode(),
+                        })
                 elif path == "/api/mcp/request":
                     # Handle Dynamic reverse connection requests
                     try:
