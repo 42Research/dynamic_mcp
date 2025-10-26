@@ -19,7 +19,7 @@ class Config:
         self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "180"))
 
         # Dynamic reverse connection configuration
-        self.dynamic_url = os.getenv("DYNAMIC_URL", "https://dynamic.artem-blagodarenko.workers.dev/:8787")
+        self.dynamic_url = os.getenv("DYNAMIC_URL", "https://dynamic.artem-blagodarenko.workers.dev")
         self.dynamic_api_key = os.getenv("DYNAMIC_API_KEY", "")
         self.enable_reverse_connection = os.getenv("ENABLE_REVERSE_CONNECTION", "false").lower() == "true"
         self.heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL", "15"))  # seconds
