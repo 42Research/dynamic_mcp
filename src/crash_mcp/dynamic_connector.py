@@ -123,27 +123,23 @@ class DynamicConnector:
         """Send a single heartbeat to Dynamic."""
         if not self.server_id or not self.session:
             return
-
+            
         url = f"{self.config.dynamic_url}/api/mcp/registry/heartbeat"
-
+        
         payload = {
             "serverId": self.server_id
         }
-
+        
         headers = {
             "Content-Type": "application/json"
         }
-
+        
         if self.config.dynamic_api_key:
             headers["Authorization"] = f"Bearer {self.config.dynamic_api_key}"
-
+            
         try:
             async with self.session.post(url, json=payload, headers=headers) as response:
-                if response.status == 404:
-                    # Server not found in registry, re-register
-                    logger.warning(f"Server not found in registry, re-registering...")
-                    await self.register_with_dynamic()
-                elif response.status != 200:
+                if response.status != 200:
                     logger.warning(f"Heartbeat failed: {response.status}")
         except Exception as e:
             logger.error(f"Heartbeat request failed: {e}")
