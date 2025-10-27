@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 from typing import Any, Dict, Optional
 import aiohttp
 
@@ -67,10 +66,6 @@ class DynamicConnector:
 
         url = f"{self.config.dynamic_url}/api/mcp/connect"
 
-        # Get the local server URL for Dynamic to call back to
-        # This is needed for Dynamic to send requests to this MCP server
-        local_url = os.getenv("MCP_SERVER_URL", "http://localhost:8080")
-
         # Prepare registration payload
         # Note: Dynamic expects the MCP server to provide its endpoint URL
         # so Dynamic can send requests back to it
@@ -78,7 +73,6 @@ class DynamicConnector:
             "name": "crash_mcp",
             "type": "crash_analysis",
             "version": "0.1.0",
-            "url": local_url,
             "capabilities": [
                 "crash_command",
                 "get_crash_info",
