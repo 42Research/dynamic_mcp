@@ -422,6 +422,77 @@ class CrashMCPServer:
                             'type': 'http.response.body',
                             'body': json.dumps({"error": str(e)}).encode(),
                         })
+                elif path == "/api/mcp/request":
+                    # Handle MCP request endpoint (called by Dynamic worker)
+                    try:
+                        # Read request body
+                        body = b""
+                        while True:
+                            message = await receive()
+                            if message["type"] == "http.request":
+                                body += message.get("body", b"")
+                                if not message.get("more_body", False):
+                                    break
+
+                        # Parse request
+                        request_data = json.loads(body.decode())
+                        method = request_data.get("method")
+                        params = request_data.get("params", {})
+
+                        logger.info(f"[MCP Request] Received method: {method}")
+
+                        # Call the appropriate tool handler
+                        result = None
+                        if method == "crash_command":
+                            result = await self._handle_crash_command(params)
+                        elif method == "get_crash_info":
+                            result = await self._handle_get_crash_info(params)
+                        elif method == "list_crash_dumps":
+                            result = await self._handle_list_crash_dumps(params)
+                        elif method == "start_crash_session":
+                            result = await self._handle_start_crash_session(params)
+                        elif method == "close_crash_session":
+                            result = await self._handle_close_crash_session(params)
+                        else:
+                            raise ValueError(f"Unknown method: {method}")
+
+                        # Convert TextContent results to strings
+                        if isinstance(result, (list, tuple)):
+                            result_text = "\n".join([
+                                item.text if hasattr(item, 'text') else str(item)
+                                for item in result
+                            ])
+                        else:
+                            result_text = str(result)
+
+                        # Send success response
+                        await send({
+                            'type': 'http.response.start',
+                            'status': 200,
+                            'headers': [[b'content-type', b'application/json']],
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': json.dumps({
+                                "success": True,
+                                "data": result_text
+                            }).encode(),
+                        })
+                    except Exception as e:
+                        logger.error(f"MCP request error: {e}")
+                        # Send error response
+                        await send({
+                            'type': 'http.response.start',
+                            'status': 400,
+                            'headers': [[b'content-type', b'application/json']],
+                        })
+                        await send({
+                            'type': 'http.response.body',
+                            'body': json.dumps({
+                                "success": False,
+                                "error": str(e)
+                            }).encode(),
+                        })
                 elif path == "/api/tools":
                     # Handle tools listing request
                     try:
