@@ -78,6 +78,14 @@ class CrashMCPServer:
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
+
+        # Dynamic service configuration
+        self.dynamic_url = os.getenv(
+            "DYNAMIC_URL",
+            "https://dynamic.artem-blagodarenko.workers.dev"
+        )
+        self.mcp_server_url = os.getenv("MCP_SERVER_URL")
+
         self._setup_tools()
     
     def _setup_tools(self):
@@ -529,6 +537,47 @@ class CrashMCPServer:
 
         return asgi_app
 
+    async def register_with_dynamic(self):
+        """Register this MCP server with Dynamic service."""
+        if not self.mcp_server_url:
+            logger.warning("MCP_SERVER_URL not set, skipping Dynamic registration")
+            return
+
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "name": "crash-mcp",
+                    "type": "crash_analysis",
+                    "version": "0.1.0",
+                    "capabilities": [
+                        "crash_command",
+                        "get_crash_info",
+                        "list_crash_dumps",
+                        "start_crash_session",
+                        "close_crash_session"
+                    ],
+                    "url": self.mcp_server_url
+                }
+
+                connect_url = f"{self.dynamic_url}/api/mcp/connect"
+                logger.info(f"Registering with Dynamic at {connect_url}")
+
+                async with session.post(
+                    connect_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
+                    result = await resp.json()
+                    if result.get("status") == "success":
+                        server_id = result.get("serverId")
+                        logger.info(f"✓ Registered with Dynamic as {server_id}")
+                        logger.info(f"✓ Use @{server_id} in Dynamic chat")
+                    else:
+                        logger.error(f"✗ Registration failed: {result.get('message')}")
+        except Exception as e:
+            logger.error(f"✗ Failed to register with Dynamic: {e}")
+
     async def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run the MCP server with HTTP/SSE transport."""
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
@@ -575,6 +624,10 @@ async def async_main():
         # HTTP/SSE mode
         host = sys.argv[2] if len(sys.argv) > 2 else "0.0.0.0"
         port = int(sys.argv[3]) if len(sys.argv) > 3 else 8080
+
+        # Register with Dynamic after server starts
+        asyncio.create_task(server.register_with_dynamic())
+
         await server.run_http(host, port)
     else:
         # Default stdio mode
