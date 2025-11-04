@@ -352,8 +352,28 @@ class CrashMCPServer:
                 if path == "/sse":
                     # Handle SSE endpoint
                     try:
+                        # Wrapper to add streaming-friendly headers
+                        async def send_with_headers(message):
+                            if message['type'] == 'http.response.start':
+                                # Add headers that help with SSE streaming through proxies/tunnels
+                                headers = list(message.get('headers', []))
+
+                                # Add streaming headers if not already present
+                                header_names = {h[0].lower() for h in headers}
+
+                                if b'cache-control' not in header_names:
+                                    headers.append([b'cache-control', b'no-cache, no-transform'])
+                                if b'connection' not in header_names:
+                                    headers.append([b'connection', b'keep-alive'])
+                                if b'x-accel-buffering' not in header_names:
+                                    headers.append([b'x-accel-buffering', b'no'])
+
+                                message['headers'] = headers
+
+                            await send(message)
+
                         async with transport.connect_sse(
-                            scope, receive, send
+                            scope, receive, send_with_headers
                         ) as streams:
                             await self.server.run(
                                 *streams,
