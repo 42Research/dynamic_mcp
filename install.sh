@@ -5,14 +5,14 @@ set -e
 
 echo "Installing Crash MCP Server..."
 
-# Check if Python 3.8+ is available
+# Check if Python 3.10+ is available
 if ! command -v python3 &> /dev/null; then
     echo "Error: Python 3 is required but not installed."
     exit 1
 fi
 
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-REQUIRED_VERSION="3.8"
+REQUIRED_VERSION="3.10"
 
 if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
     echo "Error: Python $REQUIRED_VERSION or higher is required. Found: $PYTHON_VERSION"

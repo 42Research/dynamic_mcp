@@ -14,7 +14,7 @@ A professional MCP (Model Context Protocol) server for crash dump analysis and k
 ## Requirements
 
 - **Crash Utility**: Version 8.0.4+ (system package: `crash`)
-- **Python**: 3.8+ (3.11+ recommended)
+- **Python**: 3.10+ (3.11+ recommended)
 - **Kernel Debug Symbols**: Available in `/usr/lib/debug/lib/modules/`
 - **Crash Dumps**: Accessible in `/var/crash/` or custom location
 - **Permissions**: Read access to crash dumps and kernel files
