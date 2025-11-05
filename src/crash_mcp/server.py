@@ -9,6 +9,8 @@ import asyncio
 import json
 import logging
 import os
+import secrets
+import string
 import sys
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -79,6 +81,9 @@ class CrashMCPServer:
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
 
+        # Generate unique, secure MCP server name
+        self.mcp_server_name = self._generate_secure_server_name()
+
         # Dynamic service configuration
         self.dynamic_url = os.getenv(
             "DYNAMIC_URL",
@@ -87,6 +92,14 @@ class CrashMCPServer:
         self.mcp_server_url = os.getenv("MCP_SERVER_URL")
 
         self._setup_tools()
+
+    def _generate_secure_server_name(self) -> str:
+        """Generate a unique, URL-safe, cryptographically secure server name."""
+        # Use alphanumeric characters for URL safety
+        alphabet = string.ascii_lowercase + string.digits
+        # Generate 16 random characters (128 bits of entropy)
+        random_part = ''.join(secrets.choice(alphabet) for _ in range(16))
+        return f"mcp-{random_part}"
     
     def _setup_tools(self):
         """Register MCP tools."""
@@ -618,7 +631,7 @@ class CrashMCPServer:
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 payload = {
-                    "name": "crash-mcp",
+                    "name": self.mcp_server_name,
                     "type": "crash_analysis",
                     "version": "0.1.0",
                     "capabilities": [
@@ -633,6 +646,7 @@ class CrashMCPServer:
 
                 connect_url = f"{self.dynamic_url}/api/mcp/connect"
                 logger.info(f"Registering with Dynamic at {connect_url}")
+                logger.info(f"Using unique server name: {self.mcp_server_name}")
 
                 async with session.post(
                     connect_url,
@@ -642,8 +656,8 @@ class CrashMCPServer:
                     result = await resp.json()
                     if result.get("status") == "success":
                         server_id = result.get("serverId")
-                        logger.info(f"✓ Registered with Dynamic as {server_id}")
-                        logger.info(f"✓ Use @{server_id} in Dynamic chat")
+                        logger.info(f"✓ Registered with Dynamic as @{server_id}")
+                        logger.info(f"✓ Use @{server_id} in Dynamic chat to access this server")
                     else:
                         logger.error(f"✗ Registration failed: {result.get('message')}")
         except Exception as e:
