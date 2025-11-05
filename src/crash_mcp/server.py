@@ -657,8 +657,11 @@ class CrashMCPServer:
                     result = await resp.json()
                     if result.get("status") == "success":
                         server_id = result.get("serverId")
+                        chat_url = result.get("chatUrl")
                         logger.info(f"✓ Registered with Dynamic as @{server_id}")
                         logger.info(f"✓ Use @{server_id} in Dynamic chat to access this server")
+                        if chat_url:
+                            logger.info(f"✓ Chat URL: {chat_url}")
                     else:
                         logger.error(f"✗ Registration failed: {result.get('message')}")
         except Exception as e:
