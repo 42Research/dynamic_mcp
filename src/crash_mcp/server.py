@@ -631,6 +631,7 @@ class CrashMCPServer:
             import aiohttp
             async with aiohttp.ClientSession() as session:
                 payload = {
+                    "id": self.mcp_server_name,
                     "name": self.mcp_server_name,
                     "type": "crash_analysis",
                     "version": "0.1.0",
