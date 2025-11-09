@@ -39,6 +39,7 @@ from crash_mcp.config import Config, setup_logging, check_system_requirements, v
 from crash_mcp.crash_discovery import CrashDumpDiscovery
 from crash_mcp.crash_session import CrashSessionManager
 from crash_mcp.kernel_detection import KernelDetection
+from crash_mcp.tunnel_manager import TunnelManager
 
 # Load environment variables
 try:
@@ -91,6 +92,10 @@ class CrashMCPServer:
         )
         self.mcp_server_url = os.getenv("MCP_SERVER_URL")
 
+        # Tunnel management
+        self.tunnel_manager: Optional[TunnelManager] = None
+        self.enable_reverse_connection = os.getenv("ENABLE_REVERSE_CONNECTION", "false").lower() == "true"
+
         self._setup_tools()
 
     def _generate_secure_server_name(self) -> str:
@@ -100,6 +105,41 @@ class CrashMCPServer:
         # Generate 16 random characters (128 bits of entropy)
         random_part = ''.join(secrets.choice(alphabet) for _ in range(16))
         return f"mcp-{random_part}"
+
+    async def setup_tunnel(self, port: int) -> Optional[str]:
+        """Setup reverse connection tunnel if enabled.
+
+        Args:
+            port: Local port to expose via tunnel
+
+        Returns:
+            The public tunnel URL if tunnel is enabled, None otherwise
+        """
+        if not self.enable_reverse_connection:
+            logger.info("Reverse connection disabled (ENABLE_REVERSE_CONNECTION=false)")
+            return None
+
+        try:
+            logger.info("Setting up reverse connection tunnel...")
+            self.tunnel_manager = TunnelManager(port)
+            tunnel_url = await self.tunnel_manager.start_tunnel()
+
+            # Update MCP server URL if not already set
+            if not self.mcp_server_url:
+                self.mcp_server_url = tunnel_url
+
+            return tunnel_url
+        except Exception as e:
+            logger.error(f"Failed to setup tunnel: {e}")
+            logger.warning("Continuing without tunnel - server will run in local mode only")
+            self.tunnel_manager = None
+            return None
+
+    async def cleanup_tunnel(self) -> None:
+        """Stop the tunnel if it's running."""
+        if self.tunnel_manager:
+            await self.tunnel_manager.stop_tunnel()
+            self.tunnel_manager = None
     
     def _setup_tools(self):
         """Register MCP tools."""
@@ -670,18 +710,47 @@ class CrashMCPServer:
     async def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run the MCP server with HTTP/SSE transport."""
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
-        asgi_app = self.create_sse_app()
+        logger.info(f"Reverse connection: {'ENABLED' if self.enable_reverse_connection else 'DISABLED'}")
 
-        config = uvicorn.Config(
-            app=asgi_app,
-            host=host,
-            port=port,
-            log_level="info"
-        )
-        server = uvicorn.Server(config)
         try:
+            # Setup tunnel if reverse connection is enabled
+            if self.enable_reverse_connection:
+                logger.info("")
+                logger.info("═══════════════════════════════════════════════════════")
+                logger.info("Step 1: Setting up public tunnel...")
+                logger.info("═══════════════════════════════════════════════════════")
+                tunnel_url = await self.setup_tunnel(port)
+                if tunnel_url:
+                    logger.info(f"✓ Tunnel URL: {tunnel_url}")
+                    logger.info("")
+                    logger.info("═══════════════════════════════════════════════════════")
+                    logger.info("Step 2: Starting HTTP server...")
+                    logger.info("═══════════════════════════════════════════════════════")
+                else:
+                    logger.info("")
+                    logger.info("═══════════════════════════════════════════════════════")
+                    logger.info("Step 2: Starting HTTP server (local mode)...")
+                    logger.info("═══════════════════════════════════════════════════════")
+
+            asgi_app = self.create_sse_app()
+
+            config = uvicorn.Config(
+                app=asgi_app,
+                host=host,
+                port=port,
+                log_level="info"
+            )
+            server = uvicorn.Server(config)
+
+            # Register with Dynamic after server starts (if tunnel is available)
+            if self.mcp_server_url:
+                asyncio.create_task(self.register_with_dynamic())
+
             await server.serve()
         finally:
+            # Clean up tunnel
+            await self.cleanup_tunnel()
+
             # Clean up crash session if active
             if self.crash_session_manager.is_session_active():
                 self.crash_session_manager.close_session()
@@ -689,6 +758,10 @@ class CrashMCPServer:
 
 async def async_main():
     """Async main entry point."""
+    # Enable reverse connection by default if not explicitly set
+    if "ENABLE_REVERSE_CONNECTION" not in os.environ:
+        os.environ["ENABLE_REVERSE_CONNECTION"] = "true"
+
     server = CrashMCPServer()
 
     # Check system requirements
@@ -713,9 +786,6 @@ async def async_main():
         # HTTP/SSE mode
         host = sys.argv[2] if len(sys.argv) > 2 else "0.0.0.0"
         port = int(sys.argv[3]) if len(sys.argv) > 3 else 8080
-
-        # Register with Dynamic after server starts
-        asyncio.create_task(server.register_with_dynamic())
 
         await server.run_http(host, port)
     else:
