@@ -1,6 +1,6 @@
 [Unit]
 Description=Crash MCP Server - Crash Dump Analysis Service
-Documentation=https://github.com/ablagodarenko/crash-mcp
+Documentation=https://github.com/42research/crash-mcp
 After=network-online.target
 Wants=network-online.target
 

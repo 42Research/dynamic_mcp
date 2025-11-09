@@ -1,1 +1,1 @@
-"""Tests for Web Auth MCP Server."""
+"""Tests for the Crash MCP Server."""
