@@ -1,7 +1,12 @@
+LICENSE
 README.md
 pyproject.toml
-src/crash_mcp/__init__.py
+src/crash_mcp/config.py
+src/crash_mcp/crash_discovery.py
+src/crash_mcp/crash_session.py
+src/crash_mcp/kernel_detection.py
 src/crash_mcp/server.py
+src/crash_mcp/tunnel_manager.py
 src/crash_mcp.egg-info/PKG-INFO
 src/crash_mcp.egg-info/SOURCES.txt
 src/crash_mcp.egg-info/dependency_links.txt
