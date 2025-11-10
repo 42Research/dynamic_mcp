@@ -46,6 +46,22 @@ pip install -e .
 sudo pip install .
 ```
 
+### System Install with Systemd Service
+
+```bash
+# Install system-wide with automatic systemd service setup
+sudo pip install .
+```
+
+This automatically:
+- Installs the package
+- Copies the systemd service file
+- Creates the crash-mcp user and group
+- Creates required directories
+- Registers the service with systemd
+
+See [SYSTEMD_INSTALLATION.md](SYSTEMD_INSTALLATION.md) for detailed systemd setup instructions.
+
 ## Usage
 
 ### Running the MCP Server
