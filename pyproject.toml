@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "crash-mcp"
 version = "0.1.0"
 description = "MCP server for crash dump analysis"
-authors = [{name = "User", email = "user@example.com"}]
+authors = [{name = "42Research Ltd", email = "software@42research.co.uk"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"

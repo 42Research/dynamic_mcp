@@ -308,6 +308,17 @@ export SUPPRESS_MCP_WARNINGS=true
 
 This project is licensed under the MIT License.
 
+Copyright © 2025 42Research Ltd
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+and associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software.
+
+For full license terms, see the [LICENSE](LICENSE) file.
+
+**Contact**: Email: software@42research.co.uk | Website: https://42research.co.uk
+
 ## Contributing
 
 1. Fork the repository
