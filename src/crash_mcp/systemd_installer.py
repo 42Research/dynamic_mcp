@@ -44,29 +44,34 @@ def install_systemd_service():
         shutil.copy2(str(service_file), str(service_dest))
         print(f"   ✓ Copied to {service_dest}")
         
-        # 2. Create crash-mcp user and group
-        print("2. Creating crash-mcp user and group...")
+        # 2. Create crash-mcp group (for log directory ownership)
+        print("2. Creating crash-mcp group...")
         result = subprocess.run(
-            ["useradd", "-r", "-s", "/bin/false", "crash-mcp"],
+            ["groupadd", "-r", "crash-mcp"],
             capture_output=True,
             text=True
         )
         if result.returncode == 0 or "already exists" in result.stderr:
-            print("   ✓ User/group ready")
+            print("   ✓ Group ready")
         else:
             print(f"   ⚠️  {result.stderr.strip()}")
         
         # 3. Create required directories
         print("3. Creating required directories...")
         dirs = [
-            Path("/opt/crash-mcp"),
-            Path("/var/log/crash-mcp"),
-            Path("/var/crash-dumps")
+            (Path("/opt/crash-mcp"), "root:crash-mcp", "0755"),
+            (Path("/var/log/crash-mcp"), "root:crash-mcp", "0755"),
+            (Path("/var/crash-dumps"), "root:crash-mcp", "0755")
         ]
-        for d in dirs:
+        for d, owner, perms in dirs:
             d.mkdir(parents=True, exist_ok=True)
             subprocess.run(
-                ["chown", "crash-mcp:crash-mcp", str(d)],
+                ["chown", owner, str(d)],
+                capture_output=True,
+                check=False
+            )
+            subprocess.run(
+                ["chmod", perms, str(d)],
                 capture_output=True,
                 check=False
             )

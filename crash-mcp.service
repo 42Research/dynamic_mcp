@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=crash-mcp
+User=root
 Group=crash-mcp
 WorkingDirectory=/opt/crash-mcp
 
@@ -35,11 +35,16 @@ KillSignal=SIGTERM
 TimeoutStopSec=10s
 
 # Security and isolation
-NoNewPrivileges=true
+# Note: Running as root is necessary because the 'crash' utility requires:
+# - Access to kernel memory dumps in /var/crash
+# - CAP_SYS_ADMIN capability to read kernel structures
+# - Access to /dev/mem or /dev/kmem for live kernel analysis
+# The service is still protected by systemd security features below
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/crash-dumps /var/log/crash-mcp
+ReadWritePaths=/var/crash-dumps /var/log/crash-mcp /var/crash
 
 # Resource limits
 LimitNOFILE=65536
