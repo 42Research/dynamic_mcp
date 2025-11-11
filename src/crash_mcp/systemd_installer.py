@@ -44,8 +44,8 @@ def install_systemd_service():
         shutil.copy2(str(service_file), str(service_dest))
         print(f"   ✓ Copied to {service_dest}")
         
-        # 2. Create crash-mcp group (for log directory ownership)
-        print("2. Creating crash-mcp group...")
+        # 2. Create crash-mcp user and group
+        print("2. Creating crash-mcp user and group...")
         result = subprocess.run(
             ["groupadd", "-r", "crash-mcp"],
             capture_output=True,
@@ -55,13 +55,23 @@ def install_systemd_service():
             print("   ✓ Group ready")
         else:
             print(f"   ⚠️  {result.stderr.strip()}")
-        
-        # 3. Create required directories
+
+        result = subprocess.run(
+            ["useradd", "-r", "-g", "crash-mcp", "-s", "/usr/sbin/nologin", "-d", "/opt/crash-mcp", "crash-mcp"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0 or "already exists" in result.stderr:
+            print("   ✓ User ready")
+        else:
+            print(f"   ⚠️  {result.stderr.strip()}")
+
+        # 3. Create required directories with proper permissions
         print("3. Creating required directories...")
         dirs = [
-            (Path("/opt/crash-mcp"), "root:crash-mcp", "0755"),
-            (Path("/var/log/crash-mcp"), "root:crash-mcp", "0755"),
-            (Path("/var/crash-dumps"), "root:crash-mcp", "0755")
+            (Path("/opt/crash-mcp"), "crash-mcp:crash-mcp", "0755"),
+            (Path("/var/log/crash-mcp"), "crash-mcp:crash-mcp", "0755"),
+            (Path("/var/crash-dumps"), "crash-mcp:crash-mcp", "0755")
         ]
         for d, owner, perms in dirs:
             d.mkdir(parents=True, exist_ok=True)
@@ -76,9 +86,40 @@ def install_systemd_service():
                 check=False
             )
             print(f"   ✓ {d}")
-        
-        # 4. Reload systemd daemon
-        print("4. Reloading systemd daemon...")
+
+        # 4. Configure /var/crash permissions for crash-mcp user read access
+        print("4. Configuring /var/crash permissions...")
+        crash_path = Path("/var/crash")
+        if crash_path.exists():
+            # Add crash-mcp user to group that can read /var/crash
+            # Try to add crash-mcp to the group that owns /var/crash
+            result = subprocess.run(
+                ["stat", "-c", "%G", str(crash_path)],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                crash_group = result.stdout.strip()
+                if crash_group != "crash-mcp":
+                    subprocess.run(
+                        ["usermod", "-a", "-G", crash_group, "crash-mcp"],
+                        capture_output=True,
+                        check=False
+                    )
+                    print(f"   ✓ Added crash-mcp to {crash_group} group")
+
+            # Ensure /var/crash is readable by group
+            subprocess.run(
+                ["chmod", "g+rx", str(crash_path)],
+                capture_output=True,
+                check=False
+            )
+            print(f"   ✓ /var/crash permissions configured")
+        else:
+            print(f"   ⚠️  /var/crash does not exist (will be created by kdump)")
+
+        # 5. Reload systemd daemon
+        print("5. Reloading systemd daemon...")
         subprocess.run(["systemctl", "daemon-reload"], check=True)
         print("   ✓ Daemon reloaded")
         
