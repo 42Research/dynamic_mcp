@@ -35,9 +35,20 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Rename tar.gz with Python version
+        run: |
+          cd dist/
+          # Find the tar.gz file and rename it to include Python version
+          for file in crash_mcp-*.tar.gz; do
+            if [ -f "$file" ]; then
+              # Extract version from filename and replace with Python version
+              mv "$file" "crash_mcp-py${{ matrix.python-version }}.tar.gz"
+            fi
+          done
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-py${{ matrix.python-version }}
-          path: dist/
+          name: crash_mcp-py${{ matrix.python-version }}.tar.gz
+          path: dist/crash_mcp-py${{ matrix.python-version }}.tar.gz
 
