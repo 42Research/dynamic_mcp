@@ -35,7 +35,7 @@ from pydantic import BaseModel
 
 # Import crash-related modules from crashmcp
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'crashmcp', 'src'))
-from crash_mcp.config import Config, setup_logging, check_system_requirements, validate_crash_utility
+from crash_mcp.config import Config, setup_logging, check_system_requirements, validate_crash_utility, ensure_crash_dump_access
 from crash_mcp.crash_discovery import CrashDumpDiscovery
 from crash_mcp.crash_session import CrashSessionManager
 from crash_mcp.kernel_detection import KernelDetection
@@ -764,6 +764,11 @@ async def async_main():
 
     server = CrashMCPServer()
 
+    # Ensure crash dump directory is readable (configure permissions if needed)
+    logger.info("Checking crash dump directory access...")
+    if not ensure_crash_dump_access():
+        logger.warning("Could not ensure crash dump directory is readable - some functionality may not work")
+
     # Check system requirements
     requirements = check_system_requirements()
     logger.info(f"System requirements: {requirements}")
@@ -776,6 +781,8 @@ async def async_main():
     # Check for warnings
     if not requirements.get("crash_dump_access", False):
         logger.warning("No access to crash dump directories")
+    if not requirements.get("crash_dump_readable", False):
+        logger.warning("Crash dump directory is not readable - may have permission issues")
     if not requirements.get("kernel_access", False):
         logger.warning("No access to kernel directories")
     if not requirements.get("root_access", False):
