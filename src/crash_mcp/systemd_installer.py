@@ -4,6 +4,129 @@ import os
 import subprocess
 import shutil
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _configure_crash_dump_permissions():
+    """Configure permissions for crash-mcp user to read /var/crash directory.
+
+    This function:
+    1. Attempts to use ACLs (Access Control Lists) for fine-grained permissions
+    2. Falls back to group-based permissions if ACLs are not available
+    3. Ensures crash-mcp user can read crash dump files without root privileges
+
+    Returns:
+        bool: True if permissions were configured successfully
+    """
+    crash_path = Path("/var/crash")
+
+    if not crash_path.exists():
+        print(f"   ⚠️  /var/crash does not exist (will be created by kdump)")
+        return True
+
+    try:
+        # Try ACL-based approach first (more flexible)
+        print("   Attempting ACL-based permission configuration...")
+
+        # Check if setfacl is available
+        result = subprocess.run(
+            ["which", "setfacl"],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            # setfacl is available, use ACLs
+            print("   Using ACLs for fine-grained permissions...")
+
+            # Set ACL for crash-mcp user on /var/crash directory
+            result = subprocess.run(
+                ["setfacl", "-m", "u:crash-mcp:rx", str(crash_path)],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                print(f"   ✓ ACL set for crash-mcp user on {crash_path}")
+
+                # Also set default ACL for future subdirectories
+                subprocess.run(
+                    ["setfacl", "-d", "-m", "u:crash-mcp:rx", str(crash_path)],
+                    capture_output=True,
+                    check=False
+                )
+
+                # Set ACL for existing crash dump files
+                result = subprocess.run(
+                    ["find", str(crash_path), "-type", "f", "-exec", "setfacl", "-m", "u:crash-mcp:r", "{}", "+"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+
+                if result.returncode == 0:
+                    print(f"   ✓ ACL set for existing crash dump files")
+                else:
+                    print(f"   ⚠️  Could not set ACL on all files: {result.stderr.strip()}")
+
+                return True
+            else:
+                print(f"   ⚠️  setfacl failed: {result.stderr.strip()}")
+                # Fall through to group-based approach
+        else:
+            print("   ⚠️  setfacl not available, using group-based permissions...")
+
+        # Fall back to group-based permissions
+        print("   Using group-based permission configuration...")
+
+        # Get the group that owns /var/crash
+        result = subprocess.run(
+            ["stat", "-c", "%G", str(crash_path)],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            crash_group = result.stdout.strip()
+
+            # Add crash-mcp user to the group that owns /var/crash
+            if crash_group != "crash-mcp":
+                result = subprocess.run(
+                    ["usermod", "-a", "-G", crash_group, "crash-mcp"],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    print(f"   ✓ Added crash-mcp to {crash_group} group")
+                else:
+                    print(f"   ⚠️  Could not add crash-mcp to {crash_group}: {result.stderr.strip()}")
+
+            # Ensure group has read and execute permissions on /var/crash
+            result = subprocess.run(
+                ["chmod", "g+rx", str(crash_path)],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode == 0:
+                print(f"   ✓ Group permissions configured on {crash_path}")
+            else:
+                print(f"   ⚠️  Could not set group permissions: {result.stderr.strip()}")
+
+            return True
+        else:
+            print(f"   ⚠️  Could not determine /var/crash owner: {result.stderr.strip()}")
+            return False
+
+    except subprocess.TimeoutExpired:
+        print(f"   ⚠️  Permission configuration timed out")
+        return False
+    except Exception as e:
+        print(f"   ⚠️  Error configuring permissions: {e}")
+        return False
 
 
 def install_systemd_service():
@@ -89,34 +212,7 @@ def install_systemd_service():
 
         # 4. Configure /var/crash permissions for crash-mcp user read access
         print("4. Configuring /var/crash permissions...")
-        crash_path = Path("/var/crash")
-        if crash_path.exists():
-            # Add crash-mcp user to group that can read /var/crash
-            # Try to add crash-mcp to the group that owns /var/crash
-            result = subprocess.run(
-                ["stat", "-c", "%G", str(crash_path)],
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                crash_group = result.stdout.strip()
-                if crash_group != "crash-mcp":
-                    subprocess.run(
-                        ["usermod", "-a", "-G", crash_group, "crash-mcp"],
-                        capture_output=True,
-                        check=False
-                    )
-                    print(f"   ✓ Added crash-mcp to {crash_group} group")
-
-            # Ensure /var/crash is readable by group
-            subprocess.run(
-                ["chmod", "g+rx", str(crash_path)],
-                capture_output=True,
-                check=False
-            )
-            print(f"   ✓ /var/crash permissions configured")
-        else:
-            print(f"   ⚠️  /var/crash does not exist (will be created by kdump)")
+        _configure_crash_dump_permissions()
 
         # 5. Reload systemd daemon
         print("5. Reloading systemd daemon...")
