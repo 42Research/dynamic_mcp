@@ -1,4 +1,4 @@
-# Crash MCP Server
+# Dynamic MCP Server
 
 A professional MCP (Model Context Protocol) server for crash dump analysis and kernel debugging.
 
@@ -32,8 +32,8 @@ pip install -e .
 
 ```bash
 # Create virtual environment (optional but recommended)
-python3 -m venv crash_mcp_env
-source crash_mcp_env/bin/activate
+python3 -m venv dynamic_mcp_env
+source dynamic_mcp_env/bin/activate
 
 # Install dependencies and package
 pip install -e .
@@ -56,7 +56,7 @@ sudo pip install .
 This automatically:
 - Installs the package
 - Copies the systemd service file
-- Creates the crash-mcp user and group
+- Creates the dynamic-mcp user and group
 - Creates required directories
 - Registers the service with systemd
 
@@ -69,19 +69,19 @@ See [SYSTEMD_INSTALLATION.md](SYSTEMD_INSTALLATION.md) for detailed systemd setu
 #### Stdio Mode (Default)
 ```bash
 # Run the server with stdio transport
-crash-mcp
+dynamic-mcp
 
 # Or with module syntax
-python -m crash_mcp.server
+python -m dynamic_mcp.server
 ```
 
 #### HTTP/SSE Mode
 ```bash
 # Run the server with HTTP transport on default port 8080
-crash-mcp-http
+dynamic-mcp-http
 
 # Or with module syntax
-python -m crash_mcp.server --http
+python -m dynamic_mcp.server --http
 
 # Access the server at: http://localhost:8080/sse
 ```
@@ -94,9 +94,9 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 ```json
 {
   "mcpServers": {
-    "crash-mcp": {
+    "dynamic-mcp": {
       "command": "python",
-      "args": ["-m", "crash_mcp.server"],
+      "args": ["-m", "dynamic_mcp.server"],
       "env": {
         "LOG_LEVEL": "INFO"
       }
@@ -111,7 +111,7 @@ Configure your MCP client to connect to the HTTP endpoint:
 ```json
 {
   "mcpServers": {
-    "crash-mcp": {
+    "dynamic-mcp": {
       "url": "http://localhost:8080/sse",
       "env": {
         "LOG_LEVEL": "INFO"

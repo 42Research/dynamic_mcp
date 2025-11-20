@@ -39,16 +39,16 @@ jobs:
         run: |
           cd dist/
           # Find the tar.gz file and rename it to include Python version
-          for file in crash_mcp-*.tar.gz; do
+          for file in dynamic_mcp-*.tar.gz; do
             if [ -f "$file" ]; then
               # Extract version from filename and replace with Python version
-              mv "$file" "crash_mcp-py${{ matrix.python-version }}.tar.gz"
+              mv "$file" "dynamic_mcp-py${{ matrix.python-version }}.tar.gz"
             fi
           done
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: crash_mcp-py${{ matrix.python-version }}.tar.gz
-          path: dist/crash_mcp-py${{ matrix.python-version }}.tar.gz
+          name: dynamic_mcp-py${{ matrix.python-version }}.tar.gz
+          path: dist/dynamic_mcp-py${{ matrix.python-version }}.tar.gz
 

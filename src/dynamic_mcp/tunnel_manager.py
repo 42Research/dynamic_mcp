@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tunnel Manager for Crash MCP Server
+Tunnel Manager for Dynamic MCP Server
 
 Manages cloudflared tunnel setup for reverse connection to Dynamic service.
 """

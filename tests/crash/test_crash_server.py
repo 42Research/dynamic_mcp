@@ -21,15 +21,15 @@ def test_imports():
         logger.info("Testing imports...")
 
         # Test crash-related imports
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'crashmcp', 'src'))
-        from crash_mcp.config import Config
-        from crash_mcp.crash_discovery import CrashDumpDiscovery
-        from crash_mcp.crash_session import CrashSessionManager
-        from crash_mcp.kernel_detection import KernelDetection
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'dynamic_mcp', 'src'))
+        from dynamic_mcp.config import Config
+        from dynamic_mcp.crash_discovery import CrashDumpDiscovery
+        from dynamic_mcp.crash_session import CrashSessionManager
+        from dynamic_mcp.kernel_detection import KernelDetection
         logger.info("✓ Crash modules imported successfully")
 
         # Test server import
-        from web_auth_mcp.server import CrashMCPServer
+        from dynamic_mcp.server import DynamicMCPServer
         logger.info("✓ Server module imported successfully")
 
         return True

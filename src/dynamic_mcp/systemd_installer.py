@@ -1,4 +1,4 @@
-"""Systemd service installer for crash-mcp."""
+"""Systemd service installer for dynamic-mcp."""
 
 import os
 import subprocess
@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 def _configure_crash_dump_permissions():
-    """Configure permissions for crash-mcp user to read /var/crash directory.
+    """Configure permissions for dynamic-mcp user to read /var/crash directory.
 
     This function:
     1. Attempts to use ACLs (Access Control Lists) for fine-grained permissions
     2. Falls back to group-based permissions if ACLs are not available
-    3. Ensures crash-mcp user can read crash dump files without root privileges
+    3. Ensures dynamic-mcp user can read crash dump files without root privileges
 
     Returns:
         bool: True if permissions were configured successfully
@@ -41,26 +41,26 @@ def _configure_crash_dump_permissions():
             # setfacl is available, use ACLs
             print("   Using ACLs for fine-grained permissions...")
 
-            # Set ACL for crash-mcp user on /var/crash directory
+            # Set ACL for dynamic-mcp user on /var/crash directory
             result = subprocess.run(
-                ["setfacl", "-m", "u:crash-mcp:rx", str(crash_path)],
+                ["setfacl", "-m", "u:dynamic-mcp:rx", str(crash_path)],
                 capture_output=True,
                 text=True
             )
 
             if result.returncode == 0:
-                print(f"   ✓ ACL set for crash-mcp user on {crash_path}")
+                print(f"   ✓ ACL set for dynamic-mcp user on {crash_path}")
 
                 # Also set default ACL for future subdirectories
                 subprocess.run(
-                    ["setfacl", "-d", "-m", "u:crash-mcp:rx", str(crash_path)],
+                    ["setfacl", "-d", "-m", "u:dynamic-mcp:rx", str(crash_path)],
                     capture_output=True,
                     check=False
                 )
 
                 # Set ACL for existing crash dump files
                 result = subprocess.run(
-                    ["find", str(crash_path), "-type", "f", "-exec", "setfacl", "-m", "u:crash-mcp:r", "{}", "+"],
+                    ["find", str(crash_path), "-type", "f", "-exec", "setfacl", "-m", "u:dynamic-mcp:r", "{}", "+"],
                     capture_output=True,
                     text=True,
                     timeout=30
@@ -91,18 +91,18 @@ def _configure_crash_dump_permissions():
         if result.returncode == 0:
             crash_group = result.stdout.strip()
 
-            # Add crash-mcp user to the group that owns /var/crash
-            if crash_group != "crash-mcp":
+            # Add dynamic-mcp user to the group that owns /var/crash
+            if crash_group != "dynamic-mcp":
                 result = subprocess.run(
-                    ["usermod", "-a", "-G", crash_group, "crash-mcp"],
+                    ["usermod", "-a", "-G", crash_group, "dynamic-mcp"],
                     capture_output=True,
                     text=True
                 )
 
                 if result.returncode == 0:
-                    print(f"   ✓ Added crash-mcp to {crash_group} group")
+                    print(f"   ✓ Added dynamic-mcp to {crash_group} group")
                 else:
-                    print(f"   ⚠️  Could not add crash-mcp to {crash_group}: {result.stderr.strip()}")
+                    print(f"   ⚠️  Could not add dynamic-mcp to {crash_group}: {result.stderr.strip()}")
 
             # Ensure group has read and execute permissions on /var/crash
             result = subprocess.run(
@@ -131,13 +131,13 @@ def _configure_crash_dump_permissions():
 
 def install_systemd_service():
     """Install and configure systemd service.
-    
+
     This function:
-    1. Copies crash-mcp.service to /etc/systemd/system/
-    2. Creates crash-mcp user and group
+    1. Copies dynamic-mcp.service to /etc/systemd/system/
+    2. Creates dynamic-mcp user and group
     3. Creates required directories with proper permissions
     4. Reloads systemd daemon
-    
+
     Returns:
         bool: True if successful, False otherwise
     """
@@ -145,32 +145,32 @@ def install_systemd_service():
         print("\n⚠️  Skipping systemd service setup (requires sudo)")
         print("   To enable systemd service, run: sudo pip install .")
         return False
-    
+
     print("\n" + "="*60)
     print("Setting up systemd service...")
     print("="*60)
-    
+
     try:
         # Find service file in package
         package_dir = Path(__file__).parent
-        service_file = package_dir / "crash-mcp.service"
+        service_file = package_dir / "dynamic-mcp.service"
 
         if not service_file.exists():
             print(f"❌ Service file not found: {service_file}")
             return False
-        
+
         systemd_dir = Path("/etc/systemd/system")
-        service_dest = systemd_dir / "crash-mcp.service"
-        
+        service_dest = systemd_dir / "dynamic-mcp.service"
+
         # 1. Copy service file
         print("1. Installing service file...")
         shutil.copy2(str(service_file), str(service_dest))
         print(f"   ✓ Copied to {service_dest}")
-        
-        # 2. Create crash-mcp user and group
-        print("2. Creating crash-mcp user and group...")
+
+        # 2. Create dynamic-mcp user and group
+        print("2. Creating dynamic-mcp user and group...")
         result = subprocess.run(
-            ["groupadd", "-r", "crash-mcp"],
+            ["groupadd", "-r", "dynamic-mcp"],
             capture_output=True,
             text=True
         )
@@ -180,7 +180,7 @@ def install_systemd_service():
             print(f"   ⚠️  {result.stderr.strip()}")
 
         result = subprocess.run(
-            ["useradd", "-r", "-g", "crash-mcp", "-s", "/usr/sbin/nologin", "-d", "/opt/crash-mcp", "crash-mcp"],
+            ["useradd", "-r", "-g", "dynamic-mcp", "-s", "/usr/sbin/nologin", "-d", "/opt/dynamic-mcp", "dynamic-mcp"],
             capture_output=True,
             text=True
         )
@@ -192,9 +192,9 @@ def install_systemd_service():
         # 3. Create required directories with proper permissions
         print("3. Creating required directories...")
         dirs = [
-            (Path("/opt/crash-mcp"), "crash-mcp:crash-mcp", "0755"),
-            (Path("/var/log/crash-mcp"), "crash-mcp:crash-mcp", "0755"),
-            (Path("/var/crash-dumps"), "crash-mcp:crash-mcp", "0755")
+            (Path("/opt/dynamic-mcp"), "dynamic-mcp:dynamic-mcp", "0755"),
+            (Path("/var/log/dynamic-mcp"), "dynamic-mcp:dynamic-mcp", "0755"),
+            (Path("/var/crash-dumps"), "dynamic-mcp:dynamic-mcp", "0755")
         ]
         for d, owner, perms in dirs:
             d.mkdir(parents=True, exist_ok=True)
@@ -210,7 +210,7 @@ def install_systemd_service():
             )
             print(f"   ✓ {d}")
 
-        # 4. Configure /var/crash permissions for crash-mcp user read access
+        # 4. Configure /var/crash permissions for dynamic-mcp user read access
         print("4. Configuring /var/crash permissions...")
         _configure_crash_dump_permissions()
 
@@ -218,12 +218,12 @@ def install_systemd_service():
         print("5. Reloading systemd daemon...")
         subprocess.run(["systemctl", "daemon-reload"], check=True)
         print("   ✓ Daemon reloaded")
-        
+
         print("\n✅ Systemd service installed successfully!")
         print("\nNext steps:")
-        print("  1. Enable service: sudo systemctl enable crash-mcp.service")
-        print("  2. Start service:  sudo systemctl start crash-mcp.service")
-        print("  3. Check status:   sudo systemctl status crash-mcp.service")
+        print("  1. Enable service: sudo systemctl enable dynamic-mcp.service")
+        print("  2. Start service:  sudo systemctl start dynamic-mcp.service")
+        print("  3. Check status:   sudo systemctl status dynamic-mcp.service")
         
         return True
         

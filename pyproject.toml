@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 script-files = ["setup.py"]
 
 [project]
-name = "crash-mcp"
+name = "dynamic-mcp"
 version = "0.1.0"
 description = "MCP server for crash dump analysis"
 authors = [{name = "42Research Ltd", email = "software@42research.co.uk"}]
@@ -26,9 +26,9 @@ dependencies = [
 ]
 
 [project.scripts]
-crash-mcp = "crash_mcp.server:main"
-crash-mcp-http = "crash_mcp.server:main_http"
-crash-mcp-install-systemd = "crash_mcp.systemd_installer:install_systemd_service"
+dynamic-mcp = "dynamic_mcp.server:main"
+dynamic-mcp-http = "dynamic_mcp.server:main_http"
+dynamic-mcp-install-systemd = "dynamic_mcp.systemd_installer:install_systemd_service"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -37,4 +37,4 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-crash_mcp = ["crash-mcp.service"]
+dynamic_mcp = ["dynamic-mcp.service"]

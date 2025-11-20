@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Crash MCP Server
+Dynamic MCP Server
 
 An MCP server that provides crash dump analysis tools.
 """
@@ -33,13 +33,13 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
-# Import crash-related modules from crashmcp
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'crashmcp', 'src'))
-from crash_mcp.config import Config, setup_logging, check_system_requirements, validate_crash_utility, ensure_crash_dump_access
-from crash_mcp.crash_discovery import CrashDumpDiscovery
-from crash_mcp.crash_session import CrashSessionManager
-from crash_mcp.kernel_detection import KernelDetection
-from crash_mcp.tunnel_manager import TunnelManager
+# Import crash-related modules from dynamic_mcp
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'dynamic_mcp', 'src'))
+from dynamic_mcp.config import Config, setup_logging, check_system_requirements, validate_crash_utility, ensure_crash_dump_access
+from dynamic_mcp.crash_discovery import CrashDumpDiscovery
+from dynamic_mcp.crash_session import CrashSessionManager
+from dynamic_mcp.kernel_detection import KernelDetection
+from dynamic_mcp.tunnel_manager import TunnelManager
 
 # Load environment variables
 try:
@@ -72,12 +72,12 @@ class ListDumpsParams(BaseModel):
     max_dumps: Optional[int] = 10
 
 
-class CrashMCPServer:
+class DynamicMCPServer:
     """MCP Server for crash dump analysis."""
 
     def __init__(self):
         self.config = Config()
-        self.server = Server("crash-mcp")
+        self.server = Server("dynamic-mcp")
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
@@ -376,7 +376,7 @@ class CrashMCPServer:
 
     async def run_stdio(self):
         """Run the MCP server with stdio transport."""
-        logger.info("Starting Crash MCP Server (stdio)")
+        logger.info("Starting Dynamic MCP Server (stdio)")
 
         async with stdio_server() as (read_stream, write_stream):
             try:
@@ -384,7 +384,7 @@ class CrashMCPServer:
                     read_stream,
                     write_stream,
                     InitializationOptions(
-                        server_name="crash-mcp",
+                        server_name="dynamic-mcp",
                         server_version="0.1.0",
                         capabilities=self.server.get_capabilities(
                             notification_options=NotificationOptions(),
@@ -439,7 +439,7 @@ class CrashMCPServer:
                             await self.server.run(
                                 *streams,
                                 InitializationOptions(
-                                    server_name="crash-mcp",
+                                    server_name="dynamic-mcp",
                                     server_version="0.1.0",
                                     capabilities=self.server.get_capabilities(
                                         notification_options=NotificationOptions(),
@@ -762,7 +762,7 @@ async def async_main():
     if "ENABLE_REVERSE_CONNECTION" not in os.environ:
         os.environ["ENABLE_REVERSE_CONNECTION"] = "true"
 
-    server = CrashMCPServer()
+    server = DynamicMCPServer()
 
     # Ensure crash dump directory is readable (configure permissions if needed)
     logger.info("Checking crash dump directory access...")

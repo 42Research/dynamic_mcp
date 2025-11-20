@@ -1,4 +1,4 @@
-"""Configuration for crash MCP server."""
+"""Configuration for dynamic MCP server."""
 
 import logging
 import os
@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any
 
-from crash_mcp.permission_manager import check_crash_dump_access, configure_crash_dump_permissions
+from dynamic_mcp.permission_manager import check_crash_dump_access, configure_crash_dump_permissions
 
 
 class Config:

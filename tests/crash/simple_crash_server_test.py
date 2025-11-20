@@ -18,29 +18,29 @@ def test_crash_modules():
     """Test that crash modules can be imported and used."""
     try:
         logger.info("Testing crash module imports...")
-        
+
         # Test config
-        from crash_mcp.config import Config, check_system_requirements, validate_crash_utility
+        from dynamic_mcp.config import Config, check_system_requirements, validate_crash_utility
         config = Config()
         logger.info(f"✓ Config loaded: {config}")
-        
+
         # Test crash discovery
-        from crash_mcp.crash_discovery import CrashDumpDiscovery
+        from dynamic_mcp.crash_discovery import CrashDumpDiscovery
         crash_discovery = CrashDumpDiscovery(str(config.crash_dump_path))
         crash_dumps = crash_discovery.find_crash_dumps()
         logger.info(f"✓ Found {len(crash_dumps)} crash dumps")
-        
+
         # Test kernel detection
-        from crash_mcp.kernel_detection import KernelDetection
+        from dynamic_mcp.kernel_detection import KernelDetection
         kernel_detection = KernelDetection(str(config.kernel_path))
         kernels = kernel_detection.find_kernel_files()
         logger.info(f"✓ Found {len(kernels)} kernel files")
-        
+
         # Test session manager
-        from crash_mcp.crash_session import CrashSessionManager
+        from dynamic_mcp.crash_session import CrashSessionManager
         session_manager = CrashSessionManager()
         logger.info(f"✓ Session manager created, active: {session_manager.is_session_active()}")
-        
+
         # Test system requirements
         requirements = check_system_requirements()
         logger.info(f"✓ System requirements: {requirements}")
@@ -64,12 +64,12 @@ def test_crash_tools_logic():
     """Test the logic that would be used in MCP tools."""
     try:
         logger.info("Testing crash tools logic...")
-        
-        from crash_mcp.config import Config
-        from crash_mcp.crash_discovery import CrashDumpDiscovery
-        from crash_mcp.kernel_detection import KernelDetection
-        from crash_mcp.crash_session import CrashSessionManager
-        
+
+        from dynamic_mcp.config import Config
+        from dynamic_mcp.crash_discovery import CrashDumpDiscovery
+        from dynamic_mcp.kernel_detection import KernelDetection
+        from dynamic_mcp.crash_session import CrashSessionManager
+
         config = Config()
         crash_discovery = CrashDumpDiscovery(str(config.crash_dump_path))
         kernel_detection = KernelDetection(str(config.kernel_path))

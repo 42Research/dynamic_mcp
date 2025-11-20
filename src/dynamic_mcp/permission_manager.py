@@ -1,4 +1,4 @@
-"""Permission management for crash-mcp server.
+"""Permission management for dynamic-mcp server.
 
 Handles runtime permission checking and configuration for crash dump access.
 """
@@ -92,9 +92,9 @@ def _try_acl_permissions(crash_path: Path) -> Tuple[bool, str]:
         
         if result.returncode != 0:
             return False, "setfacl not available"
-        
+
         # Get current user
-        current_user = os.getenv("SUDO_USER") or os.getenv("USER", "crash-mcp")
+        current_user = os.getenv("SUDO_USER") or os.getenv("USER", "dynamic-mcp")
         
         # Set ACL for user on directory
         result = subprocess.run(

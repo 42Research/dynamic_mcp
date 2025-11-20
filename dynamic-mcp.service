@@ -1,17 +1,17 @@
 [Unit]
-Description=Crash MCP Server - Crash Dump Analysis Service
-Documentation=https://github.com/42research/crash-mcp
+Description=Dynamic MCP Server - Crash Dump Analysis Service
+Documentation=https://github.com/42research/dynamic-mcp
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=crash-mcp
-Group=crash-mcp
-WorkingDirectory=/opt/crash-mcp
+User=dynamic-mcp
+Group=dynamic-mcp
+WorkingDirectory=/opt/dynamic-mcp
 
 # Service execution
-ExecStart=/usr/local/bin/crash-mcp-http
+ExecStart=/usr/local/bin/dynamic-mcp-http
 ExecReload=/bin/kill -HUP $MAINPID
 ExecStop=/bin/kill -TERM $MAINPID
 
@@ -27,7 +27,7 @@ Environment="LOG_LEVEL=INFO"
 Environment="PYTHONUNBUFFERED=1"
 
 # Tunnel integration - MCP_SERVER_URL will be set via systemctl set-environment or EnvironmentFile
-# EnvironmentFile=/etc/crash-mcp/crash-mcp.env
+# EnvironmentFile=/etc/dynamic-mcp/dynamic-mcp.env
 
 # Process management
 KillMode=mixed
@@ -39,7 +39,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/crash-dumps /var/log/crash-mcp /var/crash
+ReadWritePaths=/var/crash-dumps /var/log/dynamic-mcp /var/crash
 
 # Resource limits
 LimitNOFILE=65536
@@ -48,7 +48,7 @@ LimitNPROC=4096
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=crash-mcp
+SyslogIdentifier=dynamic-mcp
 
 [Install]
 WantedBy=multi-user.target
