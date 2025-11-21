@@ -7,7 +7,7 @@ script-files = ["setup.py"]
 
 [project]
 name = "dynamic-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for crash dump analysis"
 authors = [{name = "42Research Ltd", email = "software@42research.co.uk"}]
 license = {text = "MIT"}
