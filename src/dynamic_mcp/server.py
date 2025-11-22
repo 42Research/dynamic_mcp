@@ -40,6 +40,7 @@ from dynamic_mcp.crash_discovery import CrashDumpDiscovery
 from dynamic_mcp.crash_session import CrashSessionManager
 from dynamic_mcp.kernel_detection import KernelDetection
 from dynamic_mcp.tunnel_manager import TunnelManager
+from dynamic_mcp.bpftrace_executor import BPFtraceExecutor
 
 # Load environment variables
 try:
@@ -72,6 +73,13 @@ class ListDumpsParams(BaseModel):
     max_dumps: Optional[int] = 10
 
 
+class ExecuteBPFtraceParams(BaseModel):
+    """Parameters for execute BPFtrace script tool."""
+    script: str
+    timeout: Optional[int] = 30
+    use_sudo: Optional[bool] = True
+
+
 class DynamicMCPServer:
     """MCP Server for crash dump analysis."""
 
@@ -81,6 +89,7 @@ class DynamicMCPServer:
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
+        self.bpftrace_executor = BPFtraceExecutor()
 
         # Generate unique, secure MCP server name
         self.mcp_server_name = self._generate_secure_server_name()
@@ -218,6 +227,39 @@ class DynamicMCPServer:
                         "properties": {},
                         "required": []
                     }
+                ),
+                Tool(
+                    name="execute_bpftrace_script",
+                    description="Execute a BPFtrace script for system tracing and analysis",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "script": {
+                                "type": "string",
+                                "description": "BPFtrace script content"
+                            },
+                            "timeout": {
+                                "type": "integer",
+                                "description": "Script execution timeout in seconds (optional, default 30s)",
+                                "default": 30
+                            },
+                            "use_sudo": {
+                                "type": "boolean",
+                                "description": "Whether to use sudo for execution (optional, default true)",
+                                "default": True
+                            }
+                        },
+                        "required": ["script"]
+                    }
+                ),
+                Tool(
+                    name="get_bpftrace_info",
+                    description="Get information about BPFtrace availability and version",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
                 )
             ]
 
@@ -236,6 +278,10 @@ class DynamicMCPServer:
                 return await self._handle_start_crash_session(arguments)
             elif name == "close_crash_session":
                 return await self._handle_close_crash_session(arguments)
+            elif name == "execute_bpftrace_script":
+                return await self._handle_execute_bpftrace_script(arguments)
+            elif name == "get_bpftrace_info":
+                return await self._handle_get_bpftrace_info(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
 
@@ -374,6 +420,53 @@ class DynamicMCPServer:
             logger.error(f"Error closing crash session: {e}")
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    async def _handle_execute_bpftrace_script(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle BPFtrace script execution."""
+        try:
+            params = ExecuteBPFtraceParams(**arguments)
+
+            if not self.bpftrace_executor.is_available():
+                return [TextContent(type="text", text="Error: BPFtrace is not available on this system")]
+
+            logger.info(f"Executing BPFtrace script (timeout: {params.timeout}s)")
+
+            # Execute the script
+            stdout, stderr, return_code = await self.bpftrace_executor.execute_script(
+                params.script,
+                timeout=params.timeout,
+                use_sudo=params.use_sudo
+            )
+
+            # Format the result
+            result_text = f"BPFtrace execution completed (exit code: {return_code})\n\n"
+            if stdout:
+                result_text += f"Output:\n{stdout}\n"
+            if stderr:
+                result_text += f"Errors:\n{stderr}\n"
+            if not stdout and not stderr:
+                result_text += "No output produced"
+
+            return [TextContent(type="text", text=result_text)]
+
+        except Exception as e:
+            logger.error(f"Error executing BPFtrace script: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_get_bpftrace_info(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle getting BPFtrace information."""
+        try:
+            info = {
+                "available": self.bpftrace_executor.is_available(),
+                "version": self.bpftrace_executor.get_version(),
+                "default_timeout": self.bpftrace_executor.timeout
+            }
+
+            return [TextContent(type="text", text=json.dumps(info, indent=2))]
+
+        except Exception as e:
+            logger.error(f"Error getting BPFtrace info: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
     async def run_stdio(self):
         """Run the MCP server with stdio transport."""
         logger.info("Starting Dynamic MCP Server (stdio)")
@@ -506,6 +599,10 @@ class DynamicMCPServer:
                             result = await self._handle_start_crash_session(params)
                         elif method == "close_crash_session":
                             result = await self._handle_close_crash_session(params)
+                        elif method == "execute_bpftrace_script":
+                            result = await self._handle_execute_bpftrace_script(params)
+                        elif method == "get_bpftrace_info":
+                            result = await self._handle_get_bpftrace_info(params)
                         else:
                             raise ValueError(f"Unknown method: {method}")
 
@@ -622,6 +719,39 @@ class DynamicMCPServer:
                                     "properties": {},
                                     "required": []
                                 }
+                            },
+                            {
+                                "name": "execute_bpftrace_script",
+                                "description": "Execute a BPFtrace script for system tracing and analysis",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "script": {
+                                            "type": "string",
+                                            "description": "BPFtrace script content"
+                                        },
+                                        "timeout": {
+                                            "type": "integer",
+                                            "description": "Script execution timeout in seconds (optional, default 30s)",
+                                            "default": 30
+                                        },
+                                        "use_sudo": {
+                                            "type": "boolean",
+                                            "description": "Whether to use sudo for execution (optional, default true)",
+                                            "default": True
+                                        }
+                                    },
+                                    "required": ["script"]
+                                }
+                            },
+                            {
+                                "name": "get_bpftrace_info",
+                                "description": "Get information about BPFtrace availability and version",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                }
                             }
                         ]
 
@@ -680,7 +810,9 @@ class DynamicMCPServer:
                         "get_crash_info",
                         "list_crash_dumps",
                         "start_crash_session",
-                        "close_crash_session"
+                        "close_crash_session",
+                        "execute_bpftrace_script",
+                        "get_bpftrace_info"
                     ],
                     "url": self.mcp_server_url
                 }
