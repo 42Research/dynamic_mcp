@@ -32,3 +32,4 @@ src/crash_mcp/__pycache__/kernel_detection.cpython-311.pyc
 src/crash_mcp/__pycache__/server.cpython-311.pyc
 src/crash_mcp.egg-info/PKG-INFO
 src/crash_mcp.egg-info/SOURCES.txt
+build/
