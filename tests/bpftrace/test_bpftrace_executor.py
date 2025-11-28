@@ -90,20 +90,22 @@ class TestBPFtraceExecutor(unittest.TestCase):
     @unittest.skipIf(os.geteuid() != 0, "Requires root privileges")
     def test_execute_script_timeout(self):
         """Test script execution timeout."""
-        # Script that runs indefinitely
-        script = 'BEGIN { while(1) { } }'
-        
+        # Script that runs indefinitely - uses a tracepoint that continuously fires
+        script = r'tracepoint:syscalls:sys_enter_openat { printf("syscall\n"); }'
+
         async def run_test():
             stdout, stderr, returncode = await self.executor.execute_script(
                 script,
                 timeout=1,
                 use_sudo=False
             )
-            return returncode
+            return returncode, stderr
 
-        returncode = asyncio.run(run_test())
+        returncode, stderr = asyncio.run(run_test())
         # Should timeout (exit code 124)
         self.assertEqual(returncode, 124)
+        # Should contain timeout message
+        self.assertIn("timed out", stderr)
 
 
 class TestBPFtraceIntegration(unittest.TestCase):

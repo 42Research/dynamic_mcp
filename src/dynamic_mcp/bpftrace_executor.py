@@ -113,7 +113,7 @@ class BPFtraceExecutor:
     ) -> Tuple[str, str, int]:
         """Execute a BPFtrace script from file."""
         cmd = [self.bpftrace_path, script_path]
-        
+
         if use_sudo:
             cmd = ["sudo", "-n"] + cmd
 
@@ -135,9 +135,35 @@ class BPFtraceExecutor:
                     process.returncode
                 )
             except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-                return "", f"Script execution timed out after {timeout}s", 124
+                logger.info(f"BPFtrace script execution timeout after {timeout}s, terminating process")
+
+                # Try graceful termination first with SIGTERM
+                process.terminate()
+                logger.debug("Sent SIGTERM to process")
+                try:
+                    # Wait for graceful termination with a short timeout
+                    logger.debug("Waiting for graceful termination...")
+                    await asyncio.wait_for(process.wait(), timeout=2)
+                    logger.debug("Process terminated gracefully")
+                except asyncio.TimeoutError:
+                    # If graceful termination fails, force kill
+                    logger.warning("Graceful termination failed, force killing process")
+                    process.kill()
+                    logger.debug("Sent SIGKILL to process")
+                    try:
+                        logger.debug("Waiting for process to be killed...")
+                        await asyncio.wait_for(process.wait(), timeout=1)
+                        logger.debug("Process killed successfully")
+                    except asyncio.TimeoutError:
+                        logger.error("Process did not respond to SIGKILL")
+
+                # Capture any partial output that was produced before timeout
+                # Don't try to read from streams as they may block
+                stdout_text = ""
+                stderr_text = f"Script execution timed out after {timeout}s"
+
+                logger.debug(f"Returning timeout result: exit_code=124")
+                return stdout_text, stderr_text, 124
 
         except Exception as e:
             logger.error(f"Error executing BPFtrace script: {e}")

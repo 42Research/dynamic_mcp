@@ -616,11 +616,13 @@ class DynamicMCPServer:
                             result_text = str(result)
 
                         # Send success response
+                        logger.debug(f"Sending success response for method: {method}")
                         await send({
                             'type': 'http.response.start',
                             'status': 200,
                             'headers': [[b'content-type', b'application/json']],
                         })
+                        logger.debug("Response start sent")
                         await send({
                             'type': 'http.response.body',
                             'body': json.dumps({
@@ -628,6 +630,7 @@ class DynamicMCPServer:
                                 "data": result_text
                             }).encode(),
                         })
+                        logger.debug("Response body sent")
                     except Exception as e:
                         logger.error(f"MCP request error: {e}")
                         # Send error response
