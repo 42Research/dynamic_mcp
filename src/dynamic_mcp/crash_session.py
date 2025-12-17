@@ -30,10 +30,24 @@ class CrashSession:
         return self.active
 
     def start(self, timeout: int = 180) -> bool:
-        """Start the crash session."""
+        """Start the crash session.
+
+        Detects kernel file type and uses appropriate crash command format:
+        - For debug symbols (vmlinux): crash --no_scroll vmcore vmlinux
+        - For compressed kernels (vmlinuz): crash --no_scroll -f vmlinuz vmcore
+        """
         try:
-            # Build crash command with --no_scroll to prevent pager issues
-            cmd_parts = ['crash', '--no_scroll', self.kernel_path, self.dump_path]
+            # Detect kernel file type and build appropriate command
+            kernel_name = self.kernel_path.split('/')[-1]
+            is_debug_symbol = kernel_name == "vmlinux" or kernel_name.startswith("vmlinux-")
+
+            if is_debug_symbol:
+                # Debug symbols: crash --no_scroll vmcore vmlinux (no -f flag needed)
+                cmd_parts = ['crash', '--no_scroll', self.dump_path, self.kernel_path]
+            else:
+                # Compressed kernel: crash --no_scroll -f vmlinuz vmcore
+                cmd_parts = ['crash', '--no_scroll', '-f', self.kernel_path, self.dump_path]
+
             cmd = ' '.join(cmd_parts)
 
             logger.info(f"Starting crash process: {cmd}")

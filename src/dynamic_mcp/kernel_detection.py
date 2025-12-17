@@ -31,14 +31,20 @@ class KernelFile(NamedTuple):
 
 class KernelDetection:
     """Detects available kernel files for crash analysis."""
-    
-    def __init__(self, kernel_path: str):
+
+    def __init__(self, kernel_path: str, crash_dump_path: Optional[str] = None):
         self.kernel_path = Path(kernel_path)
+        self.crash_dump_path = Path(crash_dump_path) if crash_dump_path else None
         self.debug_paths = [
             Path("/usr/lib/debug/lib/modules"),
             Path("/usr/lib/debug/boot"),
             self.kernel_path
         ]
+        # Add crash dump directory as highest priority if provided
+        if self.crash_dump_path and self.crash_dump_path.is_file():
+            crash_dir = self.crash_dump_path.parent
+            if crash_dir not in self.debug_paths:
+                self.debug_paths.insert(0, crash_dir)
     
     def find_kernel_files(self) -> List[KernelFile]:
         """Find available kernel files."""
@@ -110,14 +116,66 @@ class KernelDetection:
         
         return "unknown"
     
+    def find_vmlinux_in_dump_directory(self) -> Optional[KernelFile]:
+        """Find vmlinux in the same directory as the crash dump.
+
+        This is the highest priority search location.
+
+        Returns:
+            KernelFile if found, None otherwise
+        """
+        if not self.crash_dump_path or not self.crash_dump_path.is_file():
+            return None
+
+        crash_dir = self.crash_dump_path.parent
+        vmlinux_path = crash_dir / "vmlinux"
+
+        if vmlinux_path.exists() and vmlinux_path.is_file():
+            try:
+                if os.access(vmlinux_path, os.R_OK):
+                    stat = vmlinux_path.stat()
+                    # Try to extract version from the dump directory name or use "unknown"
+                    version = self._extract_version_from_path(crash_dir)
+                    kernel = KernelFile(
+                        name="vmlinux",
+                        path=vmlinux_path,
+                        version=version,
+                        size=stat.st_size
+                    )
+                    logger.info(f"Found vmlinux in crash dump directory: {vmlinux_path}")
+                    return kernel
+            except (OSError, PermissionError) as e:
+                logger.debug(f"Cannot access vmlinux in crash directory: {e}")
+
+        return None
+
+    def _extract_version_from_path(self, directory: Path) -> str:
+        """Extract kernel version from directory path."""
+        path_parts = str(directory).split(os.sep)
+        for part in reversed(path_parts):
+            if re.match(r'^\d+\.\d+\.\d+', part):
+                return part
+
+        dir_name = directory.name
+        if re.match(r'^\d+\.\d+', dir_name):
+            return dir_name
+
+        return "unknown"
+
     def find_matching_kernel(self, crash_dump) -> Optional[KernelFile]:
         """Find a kernel file that matches the crash dump."""
+        # Priority 1: Check for vmlinux in the crash dump directory
+        kernel = self.find_vmlinux_in_dump_directory()
+        if kernel:
+            return kernel
+
+        # Priority 2: Search standard locations
         kernels = self.find_kernel_files()
-        
+
         if not kernels:
             logger.warning("No kernel files found")
             return None
-        
+
         # For now, return the first available kernel
         # In a real implementation, this would match based on dump metadata
         kernel = kernels[0]
