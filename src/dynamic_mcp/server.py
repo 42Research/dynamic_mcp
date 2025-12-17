@@ -88,7 +88,7 @@ class DynamicMCPServer:
         self.server = Server("dynamic-mcp")
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
-        self.kernel_detection = KernelDetection(str(self.config.kernel_path))
+        self.kernel_detection = KernelDetection(str(self.config.kernel_path), str(self.config.crash_dump_path))
         self.bpftrace_executor = BPFtraceExecutor()
 
         # Generate unique, secure MCP server name

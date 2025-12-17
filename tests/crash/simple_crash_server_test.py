@@ -32,7 +32,7 @@ def test_crash_modules():
 
         # Test kernel detection
         from dynamic_mcp.kernel_detection import KernelDetection
-        kernel_detection = KernelDetection(str(config.kernel_path))
+        kernel_detection = KernelDetection(str(config.kernel_path), str(config.crash_dump_path))
         kernels = kernel_detection.find_kernel_files()
         logger.info(f"✓ Found {len(kernels)} kernel files")
 
@@ -72,7 +72,7 @@ def test_crash_tools_logic():
 
         config = Config()
         crash_discovery = CrashDumpDiscovery(str(config.crash_dump_path))
-        kernel_detection = KernelDetection(str(config.kernel_path))
+        kernel_detection = KernelDetection(str(config.kernel_path), str(config.crash_dump_path))
         session_manager = CrashSessionManager()
         
         # Simulate list_crash_dumps tool
