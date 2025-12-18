@@ -16,9 +16,9 @@ class Config:
         self.crash_dump_path = Path(os.getenv("CRASH_DUMP_PATH", "/var/crash"))
         self.kernel_path = Path(os.getenv("KERNEL_PATH", "/boot"))
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
-        self.crash_timeout = int(os.getenv("CRASH_TIMEOUT", "120"))
+        self.crash_timeout = int(os.getenv("CRASH_TIMEOUT", "360"))
         self.max_crash_dumps = int(os.getenv("MAX_CRASH_DUMPS", "10"))
-        self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "180"))
+        self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "1024"))
 
 
 def setup_logging():

@@ -23,7 +23,7 @@ StartLimitBurst=3
 
 # Environment variables
 Environment="PORT=8080"
-Environment="LOG_LEVEL=INFO"
+Environment="LOG_LEVEL=DEBUG"
 Environment="PYTHONUNBUFFERED=1"
 
 # Tunnel integration - MCP_SERVER_URL will be set via systemctl set-environment or EnvironmentFile

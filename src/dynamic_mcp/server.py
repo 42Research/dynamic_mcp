@@ -88,7 +88,7 @@ class DynamicMCPServer:
         self.server = Server("dynamic-mcp")
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
-        self.kernel_detection = KernelDetection(str(self.config.kernel_path), str(self.config.crash_dump_path))
+        self.kernel_detection = KernelDetection(str(self.config.kernel_path))
         self.bpftrace_executor = BPFtraceExecutor()
 
         # Generate unique, secure MCP server name
@@ -390,8 +390,9 @@ class DynamicMCPServer:
             if not self.crash_discovery.is_valid_crash_dump(crash_dump):
                 return [TextContent(type="text", text=f"Error: Invalid crash dump: {crash_dump.name}")]
 
-            # Find matching kernel
-            kernel = self.kernel_detection.find_matching_kernel(crash_dump)
+            # Find matching kernel - create KernelDetection with specific crash dump path
+            kernel_detection = KernelDetection(str(self.config.kernel_path), str(crash_dump.path))
+            kernel = kernel_detection.find_matching_kernel(crash_dump)
             if not kernel:
                 return [TextContent(type="text", text="Error: No matching kernel found")]
 

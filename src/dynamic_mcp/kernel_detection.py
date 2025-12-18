@@ -124,12 +124,13 @@ class KernelDetection:
         Returns:
             KernelFile if found, None otherwise
         """
+        logger.info(f"looking for the image in the same directory : {self.crash_dump_path}")
         if not self.crash_dump_path or not self.crash_dump_path.is_file():
             return None
 
         crash_dir = self.crash_dump_path.parent
         vmlinux_path = crash_dir / "vmlinux"
-
+        logger.info(f"Looking for vmlinux on path: {vmlinux_path}")
         if vmlinux_path.exists() and vmlinux_path.is_file():
             try:
                 if os.access(vmlinux_path, os.R_OK):
@@ -168,6 +169,7 @@ class KernelDetection:
         kernel = self.find_vmlinux_in_dump_directory()
         if kernel:
             return kernel
+        logger.warning("No kernel in the same dir")
 
         # Priority 2: Search standard locations
         kernels = self.find_kernel_files()

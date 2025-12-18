@@ -32,7 +32,7 @@ def test_crash_modules():
 
         # Test kernel detection
         from dynamic_mcp.kernel_detection import KernelDetection
-        kernel_detection = KernelDetection(str(config.kernel_path), str(config.crash_dump_path))
+        kernel_detection = KernelDetection(str(config.kernel_path))
         kernels = kernel_detection.find_kernel_files()
         logger.info(f"✓ Found {len(kernels)} kernel files")
 
@@ -72,9 +72,9 @@ def test_crash_tools_logic():
 
         config = Config()
         crash_discovery = CrashDumpDiscovery(str(config.crash_dump_path))
-        kernel_detection = KernelDetection(str(config.kernel_path), str(config.crash_dump_path))
+        kernel_detection = KernelDetection(str(config.kernel_path))
         session_manager = CrashSessionManager()
-        
+
         # Simulate list_crash_dumps tool
         crash_dumps = crash_discovery.find_crash_dumps()
         if crash_dumps:
@@ -83,7 +83,7 @@ def test_crash_tools_logic():
                 logger.info(f"  {i}. {dump.name} ({dump.size:,} bytes)")
         else:
             logger.info("✓ list_crash_dumps would return 'No crash dumps found'")
-        
+
         # Simulate get_crash_info tool
         info = {
             "session": {"is_active": session_manager.is_session_active()},
@@ -91,12 +91,14 @@ def test_crash_tools_logic():
             "available_kernels": [kernel.to_dict() for kernel in kernel_detection.find_kernel_files()[:3]]
         }
         logger.info(f"✓ get_crash_info would return info with {len(info)} sections")
-        
+
         # Simulate start_crash_session tool logic
         if crash_dumps:
             latest_dump = crash_discovery.get_latest_crash_dump()
             if latest_dump and crash_discovery.is_valid_crash_dump(latest_dump):
-                matching_kernel = kernel_detection.find_matching_kernel(latest_dump)
+                # Create KernelDetection with specific crash dump path
+                dump_kernel_detection = KernelDetection(str(config.kernel_path), str(latest_dump.path))
+                matching_kernel = dump_kernel_detection.find_matching_kernel(latest_dump)
                 if matching_kernel:
                     logger.info(f"✓ start_crash_session would use dump: {latest_dump.name} with kernel: {matching_kernel.name}")
                 else:
