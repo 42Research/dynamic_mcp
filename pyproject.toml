@@ -8,12 +8,12 @@ script-files = ["setup.py"]
 [project]
 name = "dynamic-mcp"
 version = "0.2.0"
-description = "MCP server for crash dump analysis"
+description = "MCP server for dynamic analysys: BPFtrace, crash dump"
 authors = [{name = "42Research Ltd", email = "software@42research.co.uk"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.10"
-keywords = ["mcp", "crash", "analysis", "debugging", "kernel"]
+keywords = ["mcp", "dynamic", "bpftrace", "crash", "analysis", "debugging", "kernel"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -40,10 +40,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ablagodarenko/42Research"
-Repository = "https://github.com/ablagodarenko/42Research"
-Documentation = "https://github.com/ablagodarenko/42Research/tree/main/dynamic_mcp"
-Issues = "https://github.com/ablagodarenko/42Research/issues"
+Homepage = "42Research.co.uk"
+Repository = "https://github.com/42Research/dynamic_mcp"
+Documentation = "https://github.com/42Research/dynamic_mcp/wiki"
+Issues = "https://github.com/42Research/dynamic_mcp/issues"
 
 [project.scripts]
 dynamic-mcp = "dynamic_mcp.server:main"
