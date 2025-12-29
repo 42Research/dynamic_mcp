@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "42Research.co.uk"
+Homepage = "https://42Research.co.uk"
 Repository = "https://github.com/42Research/dynamic_mcp"
 Documentation = "https://github.com/42Research/dynamic_mcp/wiki"
 Issues = "https://github.com/42Research/dynamic_mcp/issues"
