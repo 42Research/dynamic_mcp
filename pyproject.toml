@@ -7,7 +7,7 @@ script-files = ["setup.py"]
 
 [project]
 name = "dynamic-mcp"
-version = "0.3.0"
+version = "0.3.4"
 description = "MCP server for dynamic analysys: BPFtrace, crash dump"
 authors = [{name = "42Research Ltd", email = "software@42research.co.uk"}]
 license = {text = "MIT"}
