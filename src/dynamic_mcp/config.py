@@ -11,7 +11,7 @@ from dynamic_mcp.permission_manager import check_crash_dump_access, configure_cr
 
 class Config:
     """Configuration class for crash MCP server."""
-    
+
     def __init__(self):
         self.crash_dump_path = Path(os.getenv("CRASH_DUMP_PATH", "/var/crash"))
         self.kernel_path = Path(os.getenv("KERNEL_PATH", "/boot"))
@@ -19,6 +19,7 @@ class Config:
         self.crash_timeout = int(os.getenv("CRASH_TIMEOUT", "360"))
         self.max_crash_dumps = int(os.getenv("MAX_CRASH_DUMPS", "10"))
         self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "1024"))
+        self.dynamic_url = os.getenv("DYNAMIC_URL", "https://dynamic.artem-blagodarenko.workers.dev")
 
 
 def setup_logging():
