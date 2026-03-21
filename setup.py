@@ -125,6 +125,87 @@ def _configure_crash_dump_permissions():
         print(f"   ⚠️  Error configuring permissions: {e}")
 
 
+def _install_cloudflared():
+    """Install cloudflared binary if not already present."""
+    print("\n" + "="*60)
+    print("Checking cloudflared...")
+    print("="*60)
+
+    # Check if already installed
+    if shutil.which("cloudflared"):
+        print("✓ cloudflared is already installed")
+        return
+
+    print("cloudflared not found, installing...")
+
+    # Detect package manager
+    pkg_manager = None
+    for cmd in ["apt-get", "dnf", "yum", "pacman"]:
+        if shutil.which(cmd):
+            pkg_manager = cmd
+            break
+
+    if not pkg_manager:
+        print("⚠️  No supported package manager found (apt-get, dnf, yum, pacman)")
+        print("   Please install cloudflared manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/")
+        return
+
+    try:
+        if pkg_manager == "apt-get":
+            print("Installing via apt-get...")
+            subprocess.run(["apt-get", "update"], check=True)
+            subprocess.run(["apt-get", "install", "-y", "cloudflared"], check=True)
+
+        elif pkg_manager in ("dnf", "yum"):
+            # Cloudflare provides official .rpm packages
+            print(f"Installing via .rpm package ({pkg_manager} system)...")
+            import platform
+            import urllib.request
+            import tempfile
+
+            machine = platform.machine()
+            # RPM arch names match the machine name (x86_64, aarch64)
+            rpm_arch = machine
+
+            # Get latest release tag
+            try:
+                with urllib.request.urlopen(
+                    "https://api.github.com/repos/cloudflare/cloudflared/releases/latest",
+                    timeout=10
+                ) as resp:
+                    import json
+                    tag = json.loads(resp.read())["tag_name"]
+            except Exception:
+                tag = "2024.10.0"
+
+            url = f"https://github.com/cloudflare/cloudflared/releases/download/{tag}/cloudflared-{tag.lstrip('v')}.{rpm_arch}.rpm"
+            print(f"Downloading {url}...")
+
+            with tempfile.NamedTemporaryFile(suffix=".rpm", delete=False) as tmp:
+                urllib.request.urlretrieve(url, tmp.name)
+                tmp_path = tmp.name
+
+            try:
+                subprocess.run([pkg_manager, "install", "-y", tmp_path], check=True)
+            finally:
+                os.unlink(tmp_path)
+
+        elif pkg_manager == "pacman":
+            print("Installing via pacman...")
+            subprocess.run(["pacman", "-S", "--noconfirm", "cloudflare-warp"], check=True)
+
+        # Verify
+        result = subprocess.run(["cloudflared", "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✓ cloudflared installed: {result.stdout.strip()}")
+        else:
+            print("⚠️  cloudflared installed but version check failed")
+
+    except Exception as e:
+        print(f"⚠️  Failed to install cloudflared: {e}")
+        print("   Please install manually: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/")
+
+
 def _install_systemd_service():
     """Install and configure systemd service."""
     print("\n" + "="*60)
@@ -198,6 +279,7 @@ class SystemdInstallCommand(install):
         """Run install and then setup systemd service."""
         super().run()
         if os.geteuid() == 0:
+            _install_cloudflared()
             _install_systemd_service()
         else:
             print("\n⚠️  Skipping systemd service setup (requires sudo)")
@@ -212,6 +294,7 @@ class SystemdDevelopCommand(develop):
         """Run develop and then setup systemd service."""
         super().run()
         if os.geteuid() == 0:
+            _install_cloudflared()
             _install_systemd_service()
         else:
             print("\n⚠️  Skipping systemd service setup (requires sudo)")
