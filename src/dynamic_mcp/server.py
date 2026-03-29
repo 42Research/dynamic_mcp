@@ -41,6 +41,7 @@ from dynamic_mcp.crash_session import CrashSessionManager
 from dynamic_mcp.kernel_detection import KernelDetection
 from dynamic_mcp.tunnel_manager import TunnelManager
 from dynamic_mcp.bpftrace_executor import BPFtraceExecutor
+from dynamic_mcp.source_rag import SourceRAG
 
 # Load environment variables
 try:
@@ -80,16 +81,38 @@ class ExecuteBPFtraceParams(BaseModel):
     use_sudo: Optional[bool] = True
 
 
+class SearchSourceParams(BaseModel):
+    """Parameters for search_source_files tool."""
+    query: str
+    max_files: Optional[int] = 5
+
+
+class GetSourceFileParams(BaseModel):
+    """Parameters for get_source_file tool."""
+    path: str
+
+
 class DynamicMCPServer:
     """MCP Server for crash dump analysis."""
 
-    def __init__(self):
+    def __init__(self, source_dir: Optional[str] = None):
         self.config = Config()
         self.server = Server("dynamic-mcp")
         self.crash_discovery = CrashDumpDiscovery(str(self.config.crash_dump_path))
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
         self.bpftrace_executor = BPFtraceExecutor()
+
+        # Source RAG — optional, enabled when --source-dir is provided
+        self.source_rag: Optional[SourceRAG] = None
+        resolved_dir = source_dir or os.getenv("SOURCE_DIR")
+        if resolved_dir:
+            logger.info(f"Indexing source directory: {resolved_dir}")
+            try:
+                self.source_rag = SourceRAG(resolved_dir)
+                logger.info(f"Source RAG ready: {self.source_rag.indexed_count} files indexed")
+            except Exception as e:
+                logger.error(f"Failed to index source directory: {e}")
 
         # Generate unique, secure MCP server name
         self.mcp_server_name = self._generate_secure_server_name()
@@ -260,8 +283,8 @@ class DynamicMCPServer:
                         "properties": {},
                         "required": []
                     }
-                )
-            ]
+                ),
+            ] + (self._source_rag_tools() if self.source_rag else [])
 
         @self.server.call_tool()
         async def handle_call_tool(
@@ -282,6 +305,12 @@ class DynamicMCPServer:
                 return await self._handle_execute_bpftrace_script(arguments)
             elif name == "get_bpftrace_info":
                 return await self._handle_get_bpftrace_info(arguments)
+            elif name == "search_source_files":
+                return await self._handle_search_source_files(arguments)
+            elif name == "get_source_file":
+                return await self._handle_get_source_file(arguments)
+            elif name == "list_source_files":
+                return await self._handle_list_source_files(arguments)
             else:
                 raise ValueError(f"Unknown tool: {name}")
 
@@ -468,6 +497,110 @@ class DynamicMCPServer:
             logger.error(f"Error getting BPFtrace info: {e}")
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
+    # ------------------------------------------------------------------
+    # Source RAG helpers
+    # ------------------------------------------------------------------
+
+    def _source_rag_tools(self) -> List[Tool]:
+        """Return Tool definitions for source RAG (only when source_rag is set)."""
+        return [
+            Tool(
+                name="search_source_files",
+                description=(
+                    "Search the indexed local source directory for files relevant to a query. "
+                    "Returns code snippets from the most relevant files. "
+                    "Use this whenever the user asks about the codebase, a function, a class, "
+                    "or any source-level question."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Natural language or keyword query describing what to search for"
+                        },
+                        "max_files": {
+                            "type": "integer",
+                            "description": "Maximum number of files to include in the result (default 5)",
+                            "default": 5
+                        }
+                    },
+                    "required": ["query"]
+                }
+            ),
+            Tool(
+                name="get_source_file",
+                description=(
+                    "Retrieve the full content of a specific source file from the indexed directory. "
+                    "Use this when you need to read an exact file identified via search_source_files or list_source_files."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative path of the file within the source directory (e.g. src/utils/helper.py)"
+                        }
+                    },
+                    "required": ["path"]
+                }
+            ),
+            Tool(
+                name="list_source_files",
+                description=(
+                    "List all source files that have been indexed from the local source directory. "
+                    "Useful for discovering what files are available before searching."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            ),
+        ]
+
+    async def _handle_search_source_files(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle source file search."""
+        if not self.source_rag:
+            return [TextContent(type="text", text="Error: Source RAG is not enabled (no source directory indexed)")]
+        try:
+            params = SearchSourceParams(**arguments)
+            result = self.source_rag.search(params.query, max_files=params.max_files or 5)
+            if not result:
+                return [TextContent(type="text", text=f"No source files matched the query: {params.query!r}")]
+            return [TextContent(type="text", text=result)]
+        except Exception as e:
+            logger.error(f"Error searching source files: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_get_source_file(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle fetching a specific source file."""
+        if not self.source_rag:
+            return [TextContent(type="text", text="Error: Source RAG is not enabled (no source directory indexed)")]
+        try:
+            params = GetSourceFileParams(**arguments)
+            content = self.source_rag.get_file(params.path)
+            if content is None:
+                return [TextContent(type="text", text=f"File not found in index: {params.path!r}")]
+            return [TextContent(type="text", text=f"### {params.path}\n```\n{content}\n```")]
+        except Exception as e:
+            logger.error(f"Error getting source file: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_list_source_files(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle listing all indexed source files."""
+        if not self.source_rag:
+            return [TextContent(type="text", text="Error: Source RAG is not enabled (no source directory indexed)")]
+        try:
+            files = self.source_rag.list_files()
+            if not files:
+                return [TextContent(type="text", text="No source files indexed.")]
+            lines = [f"Indexed source files ({len(files)} total):"] + [f"  {f}" for f in files]
+            return [TextContent(type="text", text="\n".join(lines))]
+        except Exception as e:
+            logger.error(f"Error listing source files: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
     async def run_stdio(self):
         """Run the MCP server with stdio transport."""
         logger.info("Starting Dynamic MCP Server (stdio)")
@@ -604,6 +737,12 @@ class DynamicMCPServer:
                             result = await self._handle_execute_bpftrace_script(params)
                         elif method == "get_bpftrace_info":
                             result = await self._handle_get_bpftrace_info(params)
+                        elif method == "search_source_files":
+                            result = await self._handle_search_source_files(params)
+                        elif method == "get_source_file":
+                            result = await self._handle_get_source_file(params)
+                        elif method == "list_source_files":
+                            result = await self._handle_list_source_files(params)
                         else:
                             raise ValueError(f"Unknown method: {method}")
 
@@ -759,6 +898,43 @@ class DynamicMCPServer:
                             }
                         ]
 
+                        # Append source RAG tools if enabled
+                        if self.source_rag:
+                            tools_list += [
+                                {
+                                    "name": "search_source_files",
+                                    "description": "Search the indexed local source directory for files relevant to a query",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "query": {"type": "string", "description": "Search query"},
+                                            "max_files": {"type": "integer", "description": "Max files to return", "default": 5}
+                                        },
+                                        "required": ["query"]
+                                    }
+                                },
+                                {
+                                    "name": "get_source_file",
+                                    "description": "Retrieve the full content of a specific indexed source file",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "path": {"type": "string", "description": "Relative file path"}
+                                        },
+                                        "required": ["path"]
+                                    }
+                                },
+                                {
+                                    "name": "list_source_files",
+                                    "description": "List all source files indexed from the local source directory",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {},
+                                        "required": []
+                                    }
+                                },
+                            ]
+
                         # Send response
                         await send({
                             'type': 'http.response.start',
@@ -804,20 +980,27 @@ class DynamicMCPServer:
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
+                capabilities = [
+                    "crash_command",
+                    "get_crash_info",
+                    "list_crash_dumps",
+                    "start_crash_session",
+                    "close_crash_session",
+                    "execute_bpftrace_script",
+                    "get_bpftrace_info",
+                ]
+                if self.source_rag:
+                    capabilities += [
+                        "search_source_files",
+                        "get_source_file",
+                        "list_source_files",
+                    ]
                 payload = {
                     "id": self.mcp_server_name,
                     "name": self.mcp_server_name,
                     "type": "crash_analysis",
                     "version": "0.1.0",
-                    "capabilities": [
-                        "crash_command",
-                        "get_crash_info",
-                        "list_crash_dumps",
-                        "start_crash_session",
-                        "close_crash_session",
-                        "execute_bpftrace_script",
-                        "get_bpftrace_info"
-                    ],
+                    "capabilities": capabilities,
                     "url": self.mcp_server_url
                 }
 
@@ -898,7 +1081,18 @@ async def async_main():
     if "ENABLE_REVERSE_CONNECTION" not in os.environ:
         os.environ["ENABLE_REVERSE_CONNECTION"] = "true"
 
-    server = DynamicMCPServer()
+    # Parse --source-dir argument
+    source_dir: Optional[str] = None
+    args = sys.argv[1:]
+    for i, arg in enumerate(args):
+        if arg == "--source-dir" and i + 1 < len(args):
+            source_dir = args[i + 1]
+            break
+        if arg.startswith("--source-dir="):
+            source_dir = arg.split("=", 1)[1]
+            break
+
+    server = DynamicMCPServer(source_dir=source_dir)
 
     # Ensure crash dump directory is readable (configure permissions if needed)
     logger.info("Checking crash dump directory access...")
