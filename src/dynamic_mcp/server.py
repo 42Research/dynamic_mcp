@@ -107,11 +107,14 @@ class DynamicMCPServer:
         self.source_rag: Optional[SourceRAG] = None
         resolved_dir = source_dir or os.getenv("SOURCE_DIR")
         if resolved_dir:
-            logger.info(f"Indexing source directory: {resolved_dir}")
+            print(f"[Source RAG] Indexing: {resolved_dir}", flush=True)
             try:
                 self.source_rag = SourceRAG(resolved_dir)
-                logger.info(f"Source RAG ready: {self.source_rag.indexed_count} files indexed")
+                abs_path = str(self.source_rag.source_dir)
+                print(f"[Source RAG] ✓ Ready — {self.source_rag.indexed_count} files indexed", flush=True)
+                print(f"[Source RAG]   Path: {abs_path}", flush=True)
             except Exception as e:
+                print(f"[Source RAG] ✗ Failed to index {resolved_dir}: {e}", flush=True)
                 logger.error(f"Failed to index source directory: {e}")
 
         # Generate unique, secure MCP server name
