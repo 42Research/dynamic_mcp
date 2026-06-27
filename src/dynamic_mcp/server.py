@@ -1123,9 +1123,21 @@ async def async_main():
 
     # Check command line arguments for transport mode
     if len(sys.argv) > 1 and sys.argv[1] == "--http":
-        # HTTP/SSE mode
-        host = sys.argv[2] if len(sys.argv) > 2 else "0.0.0.0"
-        port = int(sys.argv[3]) if len(sys.argv) > 3 else 8080
+        # HTTP/SSE mode — strip out --source-dir <val> to get positional host/port
+        positional = []
+        skip = False
+        for arg in sys.argv[2:]:
+            if skip:
+                skip = False
+                continue
+            if arg == "--source-dir":
+                skip = True
+                continue
+            if arg.startswith("--source-dir="):
+                continue
+            positional.append(arg)
+        host = positional[0] if len(positional) > 0 else "0.0.0.0"
+        port = int(positional[1]) if len(positional) > 1 else 8080
 
         await server.run_http(host, port)
     else:
