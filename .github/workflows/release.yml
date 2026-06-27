@@ -71,9 +71,30 @@ jobs:
       - name: Run tests
         run: pytest
 
+  check-version:
+    name: Check if version changed
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.check.outputs.version_changed }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check pyproject.toml version diff
+        id: check
+        run: |
+          if git diff HEAD~1 HEAD -- pyproject.toml | grep -q '^+version'; then
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+          fi
+
   publish-to-testpypi:
     name: Publish to TestPyPI
-    needs: test
+    if: needs.check-version.outputs.version_changed == 'true'
+    needs: [test, check-version]
     runs-on: ubuntu-latest
 
     environment:
