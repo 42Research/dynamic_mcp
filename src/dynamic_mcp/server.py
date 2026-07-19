@@ -81,6 +81,13 @@ class ExecuteBPFtraceParams(BaseModel):
     use_sudo: Optional[bool] = True
 
 
+class ExecuteBashParams(BaseModel):
+    """Parameters for execute_bash_command tool."""
+    command: str
+    timeout: Optional[int] = 60
+    working_dir: Optional[str] = None
+
+
 class SearchSourceParams(BaseModel):
     """Parameters for search_source_files tool."""
     query: str
@@ -287,6 +294,29 @@ class DynamicMCPServer:
                         "required": []
                     }
                 ),
+                Tool(
+                    name="execute_bash_command",
+                    description="Execute a bash command on the host system for dynamic analysis",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "Bash command to execute"
+                            },
+                            "timeout": {
+                                "type": "integer",
+                                "description": "Execution timeout in seconds (optional, default 60s)",
+                                "default": 60
+                            },
+                            "working_dir": {
+                                "type": "string",
+                                "description": "Working directory for the command (optional)"
+                            }
+                        },
+                        "required": ["command"]
+                    }
+                ),
             ] + (self._source_rag_tools() if self.source_rag else [])
 
         @self.server.call_tool()
@@ -308,6 +338,8 @@ class DynamicMCPServer:
                 return await self._handle_execute_bpftrace_script(arguments)
             elif name == "get_bpftrace_info":
                 return await self._handle_get_bpftrace_info(arguments)
+            elif name == "execute_bash_command":
+                return await self._handle_execute_bash(arguments)
             elif name == "search_source_files":
                 return await self._handle_search_source_files(arguments)
             elif name == "get_source_file":
@@ -498,6 +530,50 @@ class DynamicMCPServer:
 
         except Exception as e:
             logger.error(f"Error getting BPFtrace info: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_execute_bash(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Handle bash command execution."""
+        try:
+            params = ExecuteBashParams(**arguments)
+            logger.info(f"Executing bash command: {params.command!r}")
+
+            process = await asyncio.create_subprocess_exec(
+                "bash", "-c", params.command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=params.working_dir,
+            )
+
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    process.communicate(), timeout=params.timeout
+                )
+                return_code = process.returncode
+            except asyncio.TimeoutError:
+                try:
+                    process.terminate()
+                    await asyncio.wait_for(process.wait(), timeout=2)
+                except Exception:
+                    process.kill()
+                return_code = 124
+                stdout_b, stderr_b = b"", b"Timed out"
+
+            stdout = stdout_b.decode(errors="replace")
+            stderr = stderr_b.decode(errors="replace")
+
+            result_text = f"Exit code: {return_code}\n"
+            if stdout:
+                result_text += f"\nOutput:\n{stdout}"
+            if stderr:
+                result_text += f"\nStderr:\n{stderr}"
+            if not stdout and not stderr:
+                result_text += "\n(no output)"
+
+            return [TextContent(type="text", text=result_text)]
+
+        except Exception as e:
+            logger.error(f"Error executing bash command: {e}")
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
     # ------------------------------------------------------------------
@@ -740,6 +816,8 @@ class DynamicMCPServer:
                             result = await self._handle_execute_bpftrace_script(params)
                         elif method == "get_bpftrace_info":
                             result = await self._handle_get_bpftrace_info(params)
+                        elif method == "execute_bash_command":
+                            result = await self._handle_execute_bash(params)
                         elif method == "search_source_files":
                             result = await self._handle_search_source_files(params)
                         elif method == "get_source_file":
@@ -898,6 +976,29 @@ class DynamicMCPServer:
                                     "properties": {},
                                     "required": []
                                 }
+                            },
+                            {
+                                "name": "execute_bash_command",
+                                "description": "Execute a bash command on the host system for dynamic analysis",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "command": {
+                                            "type": "string",
+                                            "description": "Bash command to execute"
+                                        },
+                                        "timeout": {
+                                            "type": "integer",
+                                            "description": "Execution timeout in seconds (optional, default 60s)",
+                                            "default": 60
+                                        },
+                                        "working_dir": {
+                                            "type": "string",
+                                            "description": "Working directory for the command (optional)"
+                                        }
+                                    },
+                                    "required": ["command"]
+                                }
                             }
                         ]
 
@@ -991,6 +1092,7 @@ class DynamicMCPServer:
                     "close_crash_session",
                     "execute_bpftrace_script",
                     "get_bpftrace_info",
+                    "execute_bash_command",
                 ]
                 if self.source_rag:
                     capabilities += [
