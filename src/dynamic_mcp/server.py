@@ -1131,6 +1131,33 @@ class DynamicMCPServer:
         except Exception as e:
             logger.error(f"✗ Failed to register with Dynamic: {e}")
 
+    async def heartbeat_loop(self):
+        """Send periodic heartbeats to Dynamic to keep the registration alive.
+
+        The Dynamic worker marks a server inactive after 30 s without a heartbeat
+        and stops routing chat requests to it.  We ping every 20 s to stay well
+        inside that window.
+        """
+        import aiohttp
+        while True:
+            await asyncio.sleep(20)
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{self.dynamic_url}/api/mcp/registry/heartbeat",
+                        json={"serverId": self.mcp_server_name},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    ) as resp:
+                        if resp.status != 200:
+                            logger.warning(f"Heartbeat returned HTTP {resp.status}, re-registering")
+                            await self.register_with_dynamic()
+            except Exception as e:
+                logger.warning(f"Heartbeat failed: {e}, attempting re-registration")
+                try:
+                    await self.register_with_dynamic()
+                except Exception:
+                    pass
+
     async def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run the MCP server with HTTP/SSE transport."""
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
@@ -1166,9 +1193,10 @@ class DynamicMCPServer:
             )
             server = uvicorn.Server(config)
 
-            # Register with Dynamic after server starts (if tunnel is available)
+            # Register with Dynamic and start heartbeat loop (if tunnel is available)
             if self.mcp_server_url:
                 asyncio.create_task(self.register_with_dynamic())
+                asyncio.create_task(self.heartbeat_loop())
 
             await server.serve()
         finally:
