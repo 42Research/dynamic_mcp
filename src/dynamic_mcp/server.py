@@ -42,6 +42,7 @@ from dynamic_mcp.kernel_detection import KernelDetection
 from dynamic_mcp.tunnel_manager import TunnelManager
 from dynamic_mcp.bpftrace_executor import BPFtraceExecutor
 from dynamic_mcp.source_rag import SourceRAG
+from dynamic_mcp.background_jobs import BackgroundJobManager
 
 # Load environment variables
 try:
@@ -88,6 +89,28 @@ class ExecuteBashParams(BaseModel):
     working_dir: Optional[str] = None
 
 
+class ExecuteBashBackgroundParams(BaseModel):
+    """Parameters for execute_bash_background tool."""
+    command: str
+    working_dir: Optional[str] = None
+
+
+class ExecuteBPFtraceBackgroundParams(BaseModel):
+    """Parameters for execute_bpftrace_background tool."""
+    script: str
+    use_sudo: Optional[bool] = True
+
+
+class GetJobOutputParams(BaseModel):
+    """Parameters for get_job_output tool."""
+    job_id: str
+
+
+class KillJobParams(BaseModel):
+    """Parameters for kill_job tool."""
+    job_id: str
+
+
 class SearchSourceParams(BaseModel):
     """Parameters for search_source_files tool."""
     query: str
@@ -109,6 +132,7 @@ class DynamicMCPServer:
         self.crash_session_manager = CrashSessionManager()
         self.kernel_detection = KernelDetection(str(self.config.kernel_path))
         self.bpftrace_executor = BPFtraceExecutor()
+        self.job_manager = BackgroundJobManager()
 
         # Source RAG — optional, enabled when --source-dir is provided
         self.source_rag: Optional[SourceRAG] = None
@@ -317,6 +341,80 @@ class DynamicMCPServer:
                         "required": ["command"]
                     }
                 ),
+                Tool(
+                    name="execute_bash_background",
+                    description="Start a bash command in the background and return immediately with a job_id. Use get_job_output to poll for output.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "Bash command to execute"
+                            },
+                            "working_dir": {
+                                "type": "string",
+                                "description": "Working directory for the command (optional)"
+                            }
+                        },
+                        "required": ["command"]
+                    }
+                ),
+                Tool(
+                    name="execute_bpftrace_background",
+                    description="Start a BPFtrace script in the background and return immediately with a job_id. Use get_job_output to poll for output, kill_job to stop it.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "script": {
+                                "type": "string",
+                                "description": "BPFtrace script content"
+                            },
+                            "use_sudo": {
+                                "type": "boolean",
+                                "description": "Whether to use sudo for execution (optional, default true)",
+                                "default": True
+                            }
+                        },
+                        "required": ["script"]
+                    }
+                ),
+                Tool(
+                    name="get_job_output",
+                    description="Get current accumulated stdout/stderr and status of a background job started with execute_bash_background or execute_bpftrace_background.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "job_id": {
+                                "type": "string",
+                                "description": "Job ID returned by execute_bash_background or execute_bpftrace_background"
+                            }
+                        },
+                        "required": ["job_id"]
+                    }
+                ),
+                Tool(
+                    name="kill_job",
+                    description="Terminate a running background job.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "job_id": {
+                                "type": "string",
+                                "description": "Job ID to terminate"
+                            }
+                        },
+                        "required": ["job_id"]
+                    }
+                ),
+                Tool(
+                    name="list_jobs",
+                    description="List all background jobs (running and completed).",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                ),
             ] + (self._source_rag_tools() if self.source_rag else [])
 
         @self.server.call_tool()
@@ -340,6 +438,16 @@ class DynamicMCPServer:
                 return await self._handle_get_bpftrace_info(arguments)
             elif name == "execute_bash_command":
                 return await self._handle_execute_bash(arguments)
+            elif name == "execute_bash_background":
+                return await self._handle_execute_bash_background(arguments)
+            elif name == "execute_bpftrace_background":
+                return await self._handle_execute_bpftrace_background(arguments)
+            elif name == "get_job_output":
+                return await self._handle_get_job_output(arguments)
+            elif name == "kill_job":
+                return await self._handle_kill_job(arguments)
+            elif name == "list_jobs":
+                return await self._handle_list_jobs(arguments)
             elif name == "search_source_files":
                 return await self._handle_search_source_files(arguments)
             elif name == "get_source_file":
@@ -574,6 +682,103 @@ class DynamicMCPServer:
 
         except Exception as e:
             logger.error(f"Error executing bash command: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    # ------------------------------------------------------------------
+    # Background job handlers
+    # ------------------------------------------------------------------
+
+    async def _handle_execute_bash_background(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Start a bash command in the background."""
+        try:
+            params = ExecuteBashBackgroundParams(**arguments)
+            job_id = await self.job_manager.start_bash(params.command, params.working_dir)
+            text = (
+                f"Job started.\n"
+                f"job_id: {job_id}\n"
+                f"Use get_job_output(job_id=\"{job_id}\") to poll output.\n"
+                f"Use kill_job(job_id=\"{job_id}\") to stop it."
+            )
+            return [TextContent(type="text", text=text)]
+        except Exception as e:
+            logger.error(f"Error starting bash background job: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_execute_bpftrace_background(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Start a BPFtrace script in the background."""
+        try:
+            params = ExecuteBPFtraceBackgroundParams(**arguments)
+            job_id = await self.job_manager.start_bpftrace(params.script, params.use_sudo)
+            text = (
+                f"Job started.\n"
+                f"job_id: {job_id}\n"
+                f"Use get_job_output(job_id=\"{job_id}\") to poll output.\n"
+                f"Use kill_job(job_id=\"{job_id}\") to stop it."
+            )
+            return [TextContent(type="text", text=text)]
+        except Exception as e:
+            logger.error(f"Error starting bpftrace background job: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_get_job_output(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Get accumulated output of a background job."""
+        try:
+            params = GetJobOutputParams(**arguments)
+            info = self.job_manager.get_output(params.job_id)
+            if "error" in info:
+                return [TextContent(type="text", text=f"Error: {info['error']}")]
+            exit_code_str = str(info["exit_code"]) if info["exit_code"] is not None else "—"
+            text = (
+                f"job_id: {info['job_id']}\n"
+                f"status: {info['status']}\n"
+                f"elapsed: {info['elapsed_s']}s\n"
+                f"exit_code: {exit_code_str}\n"
+            )
+            if info["stdout"]:
+                text += f"\n--- stdout ---\n{info['stdout']}"
+            if info["stderr"]:
+                text += f"\n--- stderr ---\n{info['stderr']}"
+            if not info["stdout"] and not info["stderr"]:
+                text += "\n(no output yet)"
+            return [TextContent(type="text", text=text)]
+        except Exception as e:
+            logger.error(f"Error getting job output: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_kill_job(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """Terminate a background job."""
+        try:
+            params = KillJobParams(**arguments)
+            was_running = await self.job_manager.kill_job(params.job_id)
+            if was_running:
+                text = f"Job {params.job_id} terminated."
+            else:
+                info = self.job_manager.get_output(params.job_id)
+                if "error" in info:
+                    text = f"Error: {info['error']}"
+                else:
+                    text = f"Job {params.job_id} was not running (status: {info['status']})."
+            return [TextContent(type="text", text=text)]
+        except Exception as e:
+            logger.error(f"Error killing job: {e}")
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+    async def _handle_list_jobs(self, arguments: Dict[str, Any]) -> Sequence[TextContent]:
+        """List all background jobs."""
+        try:
+            jobs = self.job_manager.list_jobs()
+            if not jobs:
+                return [TextContent(type="text", text="No background jobs.")]
+            lines = [f"{len(jobs)} job(s):"]
+            for j in jobs:
+                exit_str = f"  exit={j['exit_code']}" if j["exit_code"] is not None else ""
+                lines.append(
+                    f"  {j['job_id']}  [{j['status']}]  {j['label']}: \"{j['command_desc']}\"  "
+                    f"{j['elapsed_s']}s{exit_str}"
+                )
+            return [TextContent(type="text", text="\n".join(lines))]
+        except Exception as e:
+            logger.error(f"Error listing jobs: {e}")
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
     # ------------------------------------------------------------------
@@ -818,6 +1023,16 @@ class DynamicMCPServer:
                             result = await self._handle_get_bpftrace_info(params)
                         elif method == "execute_bash_command":
                             result = await self._handle_execute_bash(params)
+                        elif method == "execute_bash_background":
+                            result = await self._handle_execute_bash_background(params)
+                        elif method == "execute_bpftrace_background":
+                            result = await self._handle_execute_bpftrace_background(params)
+                        elif method == "get_job_output":
+                            result = await self._handle_get_job_output(params)
+                        elif method == "kill_job":
+                            result = await self._handle_kill_job(params)
+                        elif method == "list_jobs":
+                            result = await self._handle_list_jobs(params)
                         elif method == "search_source_files":
                             result = await self._handle_search_source_files(params)
                         elif method == "get_source_file":
@@ -999,6 +1214,61 @@ class DynamicMCPServer:
                                     },
                                     "required": ["command"]
                                 }
+                            },
+                            {
+                                "name": "execute_bash_background",
+                                "description": "Start a bash command in the background and return immediately with a job_id",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "command": {"type": "string", "description": "Bash command to execute"},
+                                        "working_dir": {"type": "string", "description": "Working directory (optional)"}
+                                    },
+                                    "required": ["command"]
+                                }
+                            },
+                            {
+                                "name": "execute_bpftrace_background",
+                                "description": "Start a BPFtrace script in the background and return immediately with a job_id",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "script": {"type": "string", "description": "BPFtrace script content"},
+                                        "use_sudo": {"type": "boolean", "description": "Use sudo (default true)", "default": True}
+                                    },
+                                    "required": ["script"]
+                                }
+                            },
+                            {
+                                "name": "get_job_output",
+                                "description": "Get accumulated output and status of a background job",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "job_id": {"type": "string", "description": "Job ID"}
+                                    },
+                                    "required": ["job_id"]
+                                }
+                            },
+                            {
+                                "name": "kill_job",
+                                "description": "Terminate a running background job",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "job_id": {"type": "string", "description": "Job ID to terminate"}
+                                    },
+                                    "required": ["job_id"]
+                                }
+                            },
+                            {
+                                "name": "list_jobs",
+                                "description": "List all background jobs (running and completed)",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                }
                             }
                         ]
 
@@ -1093,6 +1363,11 @@ class DynamicMCPServer:
                     "execute_bpftrace_script",
                     "get_bpftrace_info",
                     "execute_bash_command",
+                    "execute_bash_background",
+                    "execute_bpftrace_background",
+                    "get_job_output",
+                    "kill_job",
+                    "list_jobs",
                 ]
                 if self.source_rag:
                     capabilities += [
