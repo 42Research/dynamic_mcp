@@ -1527,15 +1527,29 @@ async def async_main():
         logger.warning("Not running as root - may have limited access to crash dumps")
 
     # Check command line arguments for transport mode
-    if len(sys.argv) > 1 and sys.argv[1] == "--http":
-        # HTTP/SSE mode
-        host = sys.argv[2] if len(sys.argv) > 2 else "0.0.0.0"
-        port = int(sys.argv[3]) if len(sys.argv) > 3 else 8080
-
-        await server.run_http(host, port)
-    else:
-        # Default stdio mode
+    if "--stdio" in sys.argv:
         await server.run_stdio()
+    else:
+        # HTTP/SSE mode (default) — collect positional args skipping flags and their values
+        host = "0.0.0.0"
+        port = 8080
+        positional = []
+        skip_next = False
+        for arg in sys.argv[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg in ("--source-dir", "--http"):
+                skip_next = True
+                continue
+            if arg.startswith("--"):
+                continue
+            positional.append(arg)
+        if len(positional) > 0:
+            host = positional[0]
+        if len(positional) > 1:
+            port = int(positional[1])
+        await server.run_http(host, port)
 
 
 def main():
@@ -1544,8 +1558,7 @@ def main():
 
 
 def main_http():
-    """Entry point for HTTP server."""
-    sys.argv = [sys.argv[0], "--http"] + sys.argv[1:]
+    """Entry point for HTTP server (alias for main, HTTP is now the default)."""
     main()
 
 
