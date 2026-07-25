@@ -19,7 +19,7 @@ class Config:
         self.crash_timeout = int(os.getenv("CRASH_TIMEOUT", "360"))
         self.max_crash_dumps = int(os.getenv("MAX_CRASH_DUMPS", "10"))
         self.session_init_timeout = int(os.getenv("SESSION_INIT_TIMEOUT", "1024"))
-        self.dynamic_url = os.getenv("DYNAMIC_URL", "https://dynamic.artem-blagodarenko.workers.dev")
+        self.dynamic_url = os.getenv("DYNAMIC_URL", "https://production.dynamic-agent.workers.dev")
 
 
 def setup_logging():

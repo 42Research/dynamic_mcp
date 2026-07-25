@@ -154,7 +154,7 @@ class DynamicMCPServer:
         # Dynamic service configuration
         self.dynamic_url = os.getenv(
             "DYNAMIC_URL",
-            "https://dynamic.artem-blagodarenko.workers.dev"
+            "https://production.dynamic-agent.workers.dev"
         )
         self.mcp_server_url = os.getenv("MCP_SERVER_URL")
 
