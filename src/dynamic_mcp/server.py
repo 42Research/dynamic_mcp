@@ -161,6 +161,7 @@ class DynamicMCPServer:
         # Tunnel management
         self.tunnel_manager: Optional[TunnelManager] = None
         self.enable_reverse_connection = os.getenv("ENABLE_REVERSE_CONNECTION", "false").lower() == "true"
+        self._local_port: int = 8080
 
         self._setup_tools()
 
@@ -1416,6 +1417,19 @@ class DynamicMCPServer:
         import aiohttp
         while True:
             await asyncio.sleep(20)
+
+            # Restart the tunnel if the cloudflared process died
+            if self.enable_reverse_connection and self.tunnel_manager and not self.tunnel_manager.is_running():
+                logger.warning("Cloudflared tunnel process died, restarting...")
+                try:
+                    self.tunnel_manager = None
+                    new_tunnel_url = await self.setup_tunnel(self._local_port)
+                    if new_tunnel_url:
+                        logger.info(f"✓ Tunnel restarted: {new_tunnel_url}")
+                        await self.register_with_dynamic()
+                except Exception as e:
+                    logger.error(f"Failed to restart tunnel: {e}")
+
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
@@ -1435,6 +1449,7 @@ class DynamicMCPServer:
 
     async def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run the MCP server with HTTP/SSE transport."""
+        self._local_port = port
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
         logger.info(f"Reverse connection: {'ENABLED' if self.enable_reverse_connection else 'DISABLED'}")
 
@@ -1539,7 +1554,7 @@ async def async_main():
             if skip_next:
                 skip_next = False
                 continue
-            if arg in ("--source-dir", "--http"):
+            if arg in ("--source-dir",):
                 skip_next = True
                 continue
             if arg.startswith("--"):
