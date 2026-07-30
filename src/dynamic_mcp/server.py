@@ -1438,6 +1438,20 @@ class DynamicMCPServer:
         logger.info(f"Starting Crash MCP Server (HTTP) on {host}:{port}")
         logger.info(f"Reverse connection: {'ENABLED' if self.enable_reverse_connection else 'DISABLED'}")
 
+        # Fail fast if the port is already in use — before wasting time on tunnel setup
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+            _s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                _s.bind((host if host != "0.0.0.0" else "127.0.0.1", port))
+            except OSError:
+                logger.error(
+                    f"✗ Port {port} is already in use. "
+                    f"Stop the existing dynamic-mcp instance first: "
+                    f"pkill -f dynamic-mcp"
+                )
+                return
+
         try:
             # Setup tunnel if reverse connection is enabled
             if self.enable_reverse_connection:
