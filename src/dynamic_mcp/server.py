@@ -1404,7 +1404,7 @@ class DynamicMCPServer:
                     else:
                         logger.error(f"✗ Registration failed: {result.get('message')}")
         except Exception as e:
-            logger.error(f"✗ Failed to register with Dynamic: {e}")
+            logger.error(f"✗ Failed to register with Dynamic: {type(e).__name__}: {e}")
 
     async def heartbeat_loop(self):
         """Send periodic heartbeats to Dynamic to keep the registration alive.
@@ -1427,7 +1427,7 @@ class DynamicMCPServer:
                             logger.warning(f"Heartbeat returned HTTP {resp.status}, re-registering")
                             await self.register_with_dynamic()
             except Exception as e:
-                logger.warning(f"Heartbeat failed: {e}, attempting re-registration")
+                logger.warning(f"Heartbeat failed: {type(e).__name__}: {e}, attempting re-registration")
                 try:
                     await self.register_with_dynamic()
                 except Exception:
