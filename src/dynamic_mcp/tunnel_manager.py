@@ -10,7 +10,9 @@ import logging
 import os
 import platform
 import re
+import stat
 import subprocess
+import urllib.request
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -41,77 +43,68 @@ class TunnelManager:
             logger.info("✓ cloudflared is already installed")
             return
         except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.info("cloudflared not found, installing...")
+            pass
 
-        # Detect OS and install
+        logger.info("cloudflared not found, downloading binary from GitHub releases...")
+        await self._download_cloudflared()
+
+    async def _download_cloudflared(self) -> None:
+        """Download cloudflared binary directly from GitHub releases."""
         system = platform.system()
-        install_command = None
+        machine = platform.machine().lower()
+
+        arch_map = {
+            "x86_64": "amd64",
+            "amd64": "amd64",
+            "aarch64": "arm64",
+            "arm64": "arm64",
+            "armv7l": "arm",
+            "armv6l": "arm",
+        }
+        arch = arch_map.get(machine)
+
+        _install_hint = (
+            "Please install cloudflared manually: "
+            "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
+        )
+
+        if not arch:
+            raise RuntimeError(f"Unsupported architecture: {machine}. {_install_hint}")
 
         if system == "Linux":
-            # Try different package managers
-            for pm, cmd in [
-                ("apt-get", "sudo apt-get update && sudo apt-get install -y cloudflared"),
-                ("yum", "sudo yum install -y cloudflared"),
-                ("dnf", "sudo dnf install -y cloudflared"),
-            ]:
-                try:
-                    subprocess.run(
-                        ["which", pm],
-                        capture_output=True,
-                        check=True,
-                        timeout=5
-                    )
-                    install_command = cmd
-                    break
-                except subprocess.CalledProcessError:
-                    continue
-
-            if not install_command:
-                raise RuntimeError(
-                    "No supported package manager found (apt-get, yum, dnf). "
-                    "Please install cloudflared manually: "
-                    "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
-                )
-
+            asset = f"cloudflared-linux-{arch}"
         elif system == "Darwin":
-            # macOS
-            try:
-                subprocess.run(
-                    ["which", "brew"],
-                    capture_output=True,
-                    check=True,
-                    timeout=5
-                )
-                install_command = "brew install cloudflare/cloudflare/cloudflared"
-            except subprocess.CalledProcessError:
-                raise RuntimeError(
-                    "Homebrew not found. Please install cloudflared manually: "
-                    "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
-                )
-
+            asset = f"cloudflared-darwin-{arch}.tgz"
         elif system == "Windows":
-            try:
-                subprocess.run(
-                    ["where", "choco"],
-                    capture_output=True,
-                    check=True,
-                    timeout=5
-                )
-                install_command = "choco install cloudflared"
-            except subprocess.CalledProcessError:
-                raise RuntimeError(
-                    "Chocolatey not found. Please install cloudflared manually: "
-                    "https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
-                )
+            asset = f"cloudflared-windows-{arch}.exe"
         else:
-            raise RuntimeError(f"Unsupported OS: {system}")
+            raise RuntimeError(f"Unsupported OS: {system}. {_install_hint}")
 
-        logger.info(f"Running: {install_command}")
+        url = f"https://github.com/cloudflare/cloudflared/releases/latest/download/{asset}"
+
+        # Prefer ~/.local/bin so we don't need root; fall back to /usr/local/bin
+        if system != "Windows" and os.geteuid() == 0:
+            install_path = "/usr/local/bin/cloudflared"
+        else:
+            local_bin = os.path.expanduser("~/.local/bin")
+            os.makedirs(local_bin, exist_ok=True)
+            install_path = os.path.join(local_bin, "cloudflared")
+
+        logger.info(f"Downloading {url} → {install_path}")
         try:
-            subprocess.run(install_command, shell=True, check=True)
-            logger.info("✓ cloudflared installed successfully")
+            urllib.request.urlretrieve(url, install_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to download cloudflared: {e}. {_install_hint}")
+
+        if system != "Windows":
+            os.chmod(install_path, os.stat(install_path).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        # Verify the binary works
+        try:
+            subprocess.run([install_path, "--version"], capture_output=True, check=True, timeout=5)
+            logger.info(f"✓ cloudflared installed to {install_path}")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to install cloudflared: {e}")
+            raise RuntimeError(f"cloudflared binary verification failed: {e}. {_install_hint}")
 
     async def start_tunnel(self) -> str:
         """Start the cloudflared tunnel.
